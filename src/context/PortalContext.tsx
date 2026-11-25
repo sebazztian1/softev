@@ -129,16 +129,12 @@ function loadState(): PersistedState {
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
     const fallback = buildInitialState();
     return {
-<<<<<<< HEAD
       accounts: { ...fallback.accounts, ...parsed.accounts },
-=======
-      accounts: parsed.accounts ?? fallback.accounts,
       studentAccounts: Array.from(new Map([
         ...fallback.studentAccounts,
         ...(parsed.studentAccounts ?? []),
         parsed.accounts?.mahasiswa ?? fallback.accounts.mahasiswa,
       ].map(account => [account.id, account])).values()),
->>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
       currentRole: parsed.currentRole ?? null,
       activeTab: parsed.activeTab ?? 'dashboard',
       activeSubTab: parsed.activeSubTab ?? null,
@@ -405,7 +401,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const login = (identifierInput: string, password: string): boolean => {
     const clean = identifierInput.trim().toLowerCase();
-    const matched = [...Object.values(state.accounts), ...state.studentAccounts].find(
+    const matched = [...state.studentAccounts, ...Object.values(state.accounts)].find(
       (acc) =>
         acc.username.toLowerCase() === clean ||
         acc.identifier.toLowerCase() === clean ||

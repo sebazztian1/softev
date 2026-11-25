@@ -12,7 +12,7 @@ test('Integrasi merge. Username Budi membuka mahasiswa atau dekan sesuai kredens
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ringkasan Fakultas');
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ringkasan Fakultas');
-  await page.locator('header summary').click();
+  await page.locator('header button[aria-expanded]').first().click();
   await page.getByRole('button', { name: 'Keluar', exact: true }).click();
   await login(page, 'budi.santoso', 'istts2026');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dashboard Tugas Akhir');
@@ -23,8 +23,8 @@ test('Integrasi merge. Username Budi membuka mahasiswa atau dekan sesuai kredens
 test('Integrasi merge. Kaprodi baru dan akses cepat kaprodi lama membuka portal masing-masing', async ({ page }) => {
   await page.goto('/');
   await login(page, 'andi.wijaya', 'Demo#2026');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ringkasan Program Studi');
-  await page.locator('header summary').click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dashboard Kaprodi');
+  await page.locator('header button[aria-expanded]').first().click();
   await page.getByRole('button', { name: 'Keluar', exact: true }).click();
   await page.evaluate(() => localStorage.setItem('tuntas-proto-v2:persona', 'budi'));
   await page.getByRole('button', { name: /^Ketua Program Studi/ }).click();

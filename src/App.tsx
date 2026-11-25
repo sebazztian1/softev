@@ -22,26 +22,16 @@ import { DownloadProposalPage } from './pages/mahasiswa/DownloadProposalPage';
 import { HasilSidangPage } from './pages/mahasiswa/HasilSidangPage';
 import { MahasiswaDashboard } from './pages/mahasiswa/MahasiswaDashboard';
 import { RekomendasiJudulPage } from './pages/mahasiswa/RekomendasiJudulPage';
-<<<<<<< HEAD
-import { UploadProposalPage } from './pages/mahasiswa/UploadProposalPage';
-import { UploadRevisiPage } from './pages/mahasiswa/UploadRevisiPage';
 import { DekanApproveRevisiPage } from './pages/dekan/DekanApproveRevisiPage';
 import { DekanDashboard } from './pages/dekan/DekanDashboard';
 import { DekanMonitoringPage } from './pages/dekan/DekanMonitoringPage';
 import { DekanProposalPage } from './pages/dekan/DekanProposalPage';
-=======
-import { AdminPortal } from './pages/admin/AdminPortal';
->>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
 
 const UploadProposalPage = React.lazy(() => import('./pages/mahasiswa/UploadProposalPage').then(module => ({ default: module.UploadProposalPage })));
 const UploadRevisiPage = React.lazy(() => import('./pages/mahasiswa/UploadRevisiPage').then(module => ({ default: module.UploadRevisiPage })));
 
 const PortalShell: React.FC = () => {
-<<<<<<< HEAD
-  const { currentUser, activeTab } = usePortal();
-=======
-  const { currentUser, activeTab, focusedThesisId, logout } = usePortal();
->>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
+  const { currentUser, activeTab, focusedThesisId } = usePortal();
   const [profileOpen, setProfileOpen] = useState(false);
 
   if (!currentUser) {

@@ -86,7 +86,7 @@ export const LoginPage: React.FC = () => {
   const handleSimulationLogin = (item: (typeof SIMULATION_ROLES)[number]) => {
     localStorage.removeItem('tuntas-proto-v2:persona');
     localStorage.removeItem('tuntas-proto-v2:role');
-    loginAsRole(item.role);
+    loginAsRole(item.role, item.studentId);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -220,19 +220,9 @@ export const LoginPage: React.FC = () => {
             <div className="rounded-xl border border-[#E2E8F0] divide-y divide-[#E2E8F0] overflow-hidden">
               {SIMULATION_ROLES.map((item) => (
                 <button
-<<<<<<< HEAD
-                  key={item.username}
+                  key={item.studentId ?? item.username}
                   type="button"
                   onClick={() => handleSimulationLogin(item)}
-=======
-                  key={item.studentId ?? item.role}
-                  type="button"
-                  onClick={() => {
-                    localStorage.removeItem('tuntas-proto-v2:persona');
-                    localStorage.removeItem('tuntas-proto-v2:role');
-                    loginAsRole(item.role, item.studentId);
-                  }}
->>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-[#F8FAFC] text-left transition-colors cursor-pointer"
                 >
                   <div className="min-w-0">
