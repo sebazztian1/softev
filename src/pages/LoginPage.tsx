@@ -9,30 +9,34 @@ const SIMULATION_ROLES: Array<{
   title: string;
   name: string;
   identifier: string;
+  username: string;
 }> = [
   {
     role: 'mahasiswa',
     title: 'Mahasiswa',
     name: 'Kevin Hartanto',
     identifier: 'NIM 221116942 — S1 Informatika',
+    username: 'kevin.hartanto',
   },
   {
     role: 'dosen',
-    title: 'Dosen Pembimbing / Penguji',
+    title: 'Dosen Pembimbing / Penguji / Promotor',
     name: 'Ir. Hendra Wijaya, S.Kom., M.Kom.',
     identifier: 'NIDN 0722058501 — S1 Informatika',
+    username: 'hendra.wijaya',
   },
   {
     role: 'kaprodi',
     title: 'Ketua Program Studi (Kaprodi)',
     name: 'Dr. Ir. Gunawan Santoso, M.T.',
     identifier: 'NIDN 0714088102 — S1 Informatika',
+    username: 'gunawan.santoso',
   },
 ];
 
 export const LoginPage: React.FC = () => {
   const { login, loginAsRole, resetDemoData } = usePortal();
-  const [identifier, setIdentifier] = useState('221116942');
+  const [identifier, setIdentifier] = useState('hendra.wijaya');
   const [password, setPassword] = useState('istts2026');
   const [error, setError] = useState<string | null>(null);
 
@@ -40,18 +44,18 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (!identifier.trim() || !password.trim()) {
-      setError('Masukkan NIM/NIDN/Surel dan kata sandi terlebih dahulu.');
+      setError('Masukkan username, NIM/NIDN, atau surel dan kata sandi terlebih dahulu.');
       return;
     }
     const ok = login(identifier);
     if (!ok) {
-      setError('Akun tidak ditemukan. Gunakan akun simulasi yang tersedia di bawah.');
+      setError('Akun tidak ditemukan. Gunakan username atau akun simulasi yang tersedia di bawah.');
     }
   };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between px-4 py-10">
-      <div className="my-auto mx-auto w-full max-w-[440px]">
+      <div className="my-auto mx-auto w-full max-w-[460px]">
         <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-8">
           <div className="flex items-center gap-3 pb-6 border-b border-[#E2E8F0]">
             <IsttsLogo className="w-10 h-10 shrink-0" />
@@ -66,14 +70,14 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             <div>
               <label htmlFor="login-id" className="block label-md text-[#0B1C30] mb-1.5">
-                NIM / NIDN / Surel Institusi
+                Username / NIM / NIDN / Surel Institusi
               </label>
               <input
                 id="login-id"
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Contoh: 221116942 atau 0722058501"
+                placeholder="Contoh: hendra.wijaya atau 221116942"
                 className="input-field"
               />
             </div>
@@ -127,7 +131,7 @@ export const LoginPage: React.FC = () => {
                   <div className="min-w-0">
                     <p className="body-semibold text-[#0B1C30]">{item.title}</p>
                     <p className="code-meta text-[#475569] truncate">
-                      {item.name} ({item.identifier})
+                      {item.name} — @{item.username} ({item.identifier})
                     </p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-[#0284C7] shrink-0 stroke-[1.75]" />

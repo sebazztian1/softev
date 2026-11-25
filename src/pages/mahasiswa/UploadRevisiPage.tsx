@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { QrCode } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FileDropzone } from '../../components/ui/FileDropzone';
+import { QrCodeSvg } from '../../components/ui/QrCodeSvg';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
 import { formatCountdown, formatDateTimeId } from '../../utils/format';
@@ -152,8 +154,27 @@ export const UploadRevisiPage: React.FC = () => {
           </form>
         </div>
 
-        {/* Status Verifikasi per Penilai */}
+        {/* Right Utility Column */}
         <aside className="lg:col-span-4 space-y-6">
+          {studentThesis.revisionQrToken && (
+            <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6">
+              <div className="flex items-center gap-2 pb-4 border-b border-[#E2E8F0]">
+                <QrCode className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
+                <h2 className="headline-sm text-[#0B1C30]">Kode QR Verifikasi Revisi</h2>
+              </div>
+              <div className="mt-4 flex flex-col items-center text-center">
+                <QrCodeSvg value={studentThesis.revisionQrToken} size={148} />
+                <p className="code-meta text-[#0F2A66] font-semibold mt-3">
+                  {studentThesis.revisionQrToken}
+                </p>
+                <p className="code-meta text-[#475569] mt-1">
+                  Tunjukkan kode QR ini kepada Dosen Pembimbing atau Penguji untuk persetujuan
+                  revisi secara langsung.
+                </p>
+              </div>
+            </section>
+          )}
+
           <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6">
             <h2 className="headline-sm text-[#0B1C30] pb-4 border-b border-[#E2E8F0]">
               Status Verifikasi Revisi

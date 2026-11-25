@@ -8,8 +8,10 @@ import { PortalProvider, usePortal } from './context/PortalContext';
 import { LoginPage } from './pages/LoginPage';
 import { DosenDashboard } from './pages/dosen/DosenDashboard';
 import { DosenRekomendasiPage } from './pages/dosen/DosenRekomendasiPage';
-import { MahasiswaBimbinganPage } from './pages/dosen/MahasiswaBimbinganPage';
+import { PromotorS3Page } from './pages/dosen/PromotorS3Page';
 import { SidangPenilaianPage } from './pages/dosen/SidangPenilaianPage';
+import { SinkronisasiJadwalPage } from './pages/dosen/SinkronisasiJadwalPage';
+import { TulisReviewPage } from './pages/dosen/TulisReviewPage';
 import { KaprodiDashboard } from './pages/kaprodi/KaprodiDashboard';
 import { MonitoringTaPage } from './pages/kaprodi/MonitoringTaPage';
 import { PengaturanPeriodePage } from './pages/kaprodi/PengaturanPeriodePage';
@@ -58,14 +60,18 @@ const PortalShell: React.FC = () => {
 
     if (currentUser.role === 'dosen') {
       switch (activeTab) {
-        case 'mahasiswa-bimbingan':
-          return <MahasiswaBimbinganPage />;
-        case 'sidang-penilaian':
+        case 'tulis-review':
+          return <TulisReviewPage />;
+        case 'sidang-proposal':
           return <SidangPenilaianPage />;
         case 'rekomendasi-judul':
           return <DosenRekomendasiPage />;
-        case 'arsip-proposal':
-          return <CariProposalPage pageTitle="Arsip Proposal & TA" />;
+        case 'cari-dokumen':
+          return <CariProposalPage pageTitle="Cari Dokumen TA & Tesis" />;
+        case 'promotor-s3':
+          return <PromotorS3Page />;
+        case 'sinkronisasi-jadwal':
+          return <SinkronisasiJadwalPage />;
         default:
           return <DosenDashboard />;
       }

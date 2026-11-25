@@ -1,8 +1,15 @@
 export type UserRole = 'mahasiswa' | 'dosen' | 'kaprodi';
 
+export type DosenStructuralRole =
+  | 'reviewer-proposal'
+  | 'promotor-s3'
+  | 'koordinator-jadwal';
+
 export type AcademicStatus =
   | 'Menunggu Verifikasi'
   | 'Perlu Revisi'
+  | 'Diperbaiki'
+  | 'Perbaikan Bersyarat'
   | 'Diterima'
   | 'Ditolak';
 
@@ -13,15 +20,24 @@ export type ThesisStage =
   | 'Revisi Proposal'
   | 'Pengesahan Akhir';
 
+export type DoctoralStage =
+  | 'Ujian Kualifikasi'
+  | 'Proposal Disertasi'
+  | 'Seminar Hasil Riset'
+  | 'Ujian Tertutup'
+  | 'Sidang Terbuka';
+
 export interface UserAccount {
   id: string;
   role: UserRole;
+  username: string;
   name: string;
   identifier: string; // NIM for mahasiswa, NIDN for dosen/kaprodi
   department: string;
   email: string;
   phone: string;
   initials: string;
+  structuralRoles?: DosenStructuralRole[];
 }
 
 export interface LecturerProfile {
@@ -42,6 +58,7 @@ export interface SubmissionFile {
   uploadedBy: string;
   summary: string;
   hasRealBlob: boolean;
+  revisionQrToken?: string;
   pdfTitle?: string;
   pdfLines?: string[];
 }
@@ -92,6 +109,7 @@ export interface ThesisRecord {
   advisor2Id: string;
   proposedAdvisor1Id?: string;
   proposedAdvisor2Id?: string;
+  revisionQrToken?: string;
   submissions: SubmissionFile[];
   evaluations: EvaluationRecord[];
   defenseSchedule?: DefenseSchedule;
@@ -108,7 +126,9 @@ export interface TopicRecommendation {
   lecturerName: string;
   quota: number;
   takenCount: number;
-  status: 'Tersedia' | 'Penuh';
+  status: 'Tersedia' | 'Reserved' | 'Penuh';
+  reservedByName?: string;
+  reservedByNim?: string;
   description: string;
   prerequisites: string;
   createdAt: string;
@@ -121,7 +141,7 @@ export interface ArchiveEntry {
   studentNim: string;
   year: number;
   field: string;
-  type: 'Proposal TA' | 'Laporan TA';
+  type: 'Proposal TA' | 'Laporan TA' | 'Tesis S2' | 'Disertasi S3';
   advisor1Name: string;
   advisor2Name: string;
   keywords: string[];
@@ -148,6 +168,8 @@ export interface NotificationItem {
   createdAt: string;
   read: boolean;
   targetTab?: string;
+  targetSubTab?: string;
+  targetThesisId?: string;
 }
 
 export interface AcademicPeriod {
@@ -165,4 +187,49 @@ export interface PreviewFilePayload {
   subtitle: string;
   lines: string[];
   hasRealBlob: boolean;
+}
+
+export interface DoctoralLogEntry {
+  id: string;
+  date: string;
+  topic: string;
+  progressSummary: string;
+  publicationNote?: string;
+  status: 'Menunggu Verifikasi' | 'Disetujui' | 'Perlu Revisi';
+  promoterNote?: string;
+}
+
+export interface DoctoralStudentRecord {
+  id: string;
+  name: string;
+  nim: string;
+  programStudi: string;
+  dissertationTitle: string;
+  lecturerRole: 'Promotor' | 'Ko-Promotor';
+  partnerName: string;
+  currentStage: DoctoralStage;
+  stageStatus: AcademicStatus;
+  logBooks: DoctoralLogEntry[];
+  updatedAt: string;
+}
+
+export interface LecturerScheduleItem {
+  id: string;
+  dayOfWeek: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  title: string;
+  category: 'Mengajar' | 'Bimbingan' | 'Sidang Terkonfirmasi';
+  room: string;
+  thesisId?: string;
+}
+
+export interface CandidateDefenseSlot {
+  id: string;
+  date: string; // YYYY-MM-DD
+  dayOfWeek: string;
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  room: string;
 }

@@ -4,13 +4,14 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
+import { TopicRecommendation } from '../../types/portal';
 
 export const DosenRekomendasiPage: React.FC = () => {
   const {
     currentUser,
     topics,
     addTopicRecommendation,
-    toggleTopicStatus,
+    setTopicStatus,
     deleteTopicRecommendation,
     showToast,
   } = usePortal();
@@ -49,14 +50,14 @@ export const DosenRekomendasiPage: React.FC = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="headline-lg text-[#0B1C30]">Rekomendasi Judul</h1>
+          <h1 className="headline-lg text-[#0B1C30]">Rekomendasi Judul Proposal</h1>
           <p className="body-base text-[#475569] mt-1">
-            Kelola penawaran topik penelitian Tugas Akhir untuk mahasiswa S1 Informatika
+            Tambahkan ide topik penelitian baru dan pantau status Reserved saat diambil mahasiswa
           </p>
         </div>
         <button type="button" onClick={() => setModalOpen(true)} className="btn-primary shrink-0">
           <Plus className="w-4 h-4 stroke-[1.75]" />
-          Tambah Topik
+          Tambah Topik Baru
         </button>
       </div>
 
@@ -87,20 +88,34 @@ export const DosenRekomendasiPage: React.FC = () => {
                   </div>
                   <h3 className="headline-sm text-[#0B1C30]">{topic.title}</h3>
                   <p className="body-base text-[#475569]">{topic.description}</p>
+                  {topic.status === 'Reserved' && topic.reservedByName && (
+                    <p className="code-meta text-[#1D4ED8] font-semibold">
+                      Diambil oleh: {topic.reservedByName}
+                      {topic.reservedByNim ? ` (${topic.reservedByNim})` : ''}
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleTopicStatus(topic.id)}
-                    className="btn-secondary"
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <select
+                    aria-label={`Ubah status topik ${topic.title}`}
+                    value={topic.status}
+                    onChange={(e) =>
+                      setTopicStatus(
+                        topic.id,
+                        e.target.value as TopicRecommendation['status'],
+                      )
+                    }
+                    className="input-field w-36"
                   >
-                    {topic.status === 'Tersedia' ? 'Tandai Penuh' : 'Buka Kuota'}
-                  </button>
+                    <option value="Tersedia">Tersedia</option>
+                    <option value="Reserved">Reserved</option>
+                    <option value="Penuh">Penuh</option>
+                  </select>
                   <button
                     type="button"
                     onClick={() => deleteTopicRecommendation(topic.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 label-md text-[#B91C1C] hover:bg-[#FEE2E2] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-3 h-[42px] label-md text-[#B91C1C] hover:bg-[#FEE2E2] cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4 stroke-[1.5]" />
                     Hapus
