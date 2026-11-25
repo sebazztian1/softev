@@ -1,4 +1,4 @@
-import { LecturerProfile, PreviewFilePayload, ThesisRecord } from '../types/portal';
+import { LecturerProfile, PreviewFilePayload, SubmissionFile, ThesisRecord } from '../types/portal';
 import { getFileBlob } from './fileStorage';
 import { generateAcademicPdfBlob } from './pdfGenerator';
 
@@ -71,28 +71,46 @@ export function getLecturerName(lecturers: LecturerProfile[], id: string): strin
   return lecturers.find((l) => l.id === id)?.name ?? 'Belum ditetapkan';
 }
 
-export async function downloadPdfPayload(payload: PreviewFilePayload): Promise<void> {
-  let blob: Blob | null = null;
+export function submissionPdf(thesis: ThesisRecord, file: SubmissionFile): PreviewFilePayload {
+  return {
+    id: file.id, fileName: file.fileName, title: file.pdfTitle ?? file.versionLabel,
+    subtitle: `${thesis.studentName} (${thesis.studentNim})`,
+    lines: file.pdfLines ?? [
+      `Berkas: ${file.fileName}`,
+      `Diunggah oleh: ${file.uploadedBy}`,
+      `Ringkasan: ${file.summary}`,
+    ],
+    hasRealBlob: file.hasRealBlob,
+  };
+}
+
+export async function resolvePdfPayload(payload: PreviewFilePayload, requireOriginal = true): Promise<Blob> {
+  if (payload.assetUrl) {
+    const response = await fetch(payload.assetUrl);
+    if (response.ok) {
+      const blob = await response.blob();
+      if (await blob.slice(0, 5).text() === '%PDF-') return blob.slice(0, blob.size, 'application/pdf');
+    }
+    throw new Error('Formulir PDF gagal dimuat. Silakan coba lagi.');
+  }
   if (payload.hasRealBlob) {
-    try {
-      blob = await getFileBlob(payload.id);
-    } catch {
-      blob = null;
+    const blob = await getFileBlob(payload.id).catch(() => null);
+    if (blob) return blob;
+    if (requireOriginal) {
+      throw new Error('Berkas unggahan tidak ditemukan di penyimpanan peramban ini.');
     }
   }
-  if (!blob) {
-    blob = generateAcademicPdfBlob({
-      title: payload.title,
-      subtitle: payload.subtitle,
-      lines: payload.lines,
-    });
-  }
+  return generateAcademicPdfBlob(payload);
+}
+
+export async function downloadPdfPayload(payload: PreviewFilePayload, requireOriginal = false): Promise<void> {
+  const blob = await resolvePdfPayload(payload, requireOriginal);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = payload.fileName;
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function exportThesesToCsv(

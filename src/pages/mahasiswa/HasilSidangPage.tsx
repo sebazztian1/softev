@@ -1,12 +1,16 @@
-import React from 'react';
+﻿import React, { useState } from 'react';
 import { Eye } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
 import { formatDateId, formatDateTimeId, getLecturerName } from '../../utils/format';
+import { needsRevision } from '../../utils/revision';
 
 export const HasilSidangPage: React.FC = () => {
-  const { studentThesis, lecturers, setActiveTab, openFilePreview } = usePortal();
+  const { studentThesis: activeThesis, theses, currentUser, focusedThesisId, lecturers, setActiveTab, navigateWithContext, openFilePreview } = usePortal();
+  const [selectedId, setSelectedId] = useState(focusedThesisId ?? '');
+  const records = theses.filter(item => item.studentId === currentUser?.id);
+  const studentThesis = records.find(item => item.id === selectedId) ?? activeThesis;
 
   if (!studentThesis) {
     return (
@@ -30,114 +34,53 @@ export const HasilSidangPage: React.FC = () => {
     );
   }
 
-  // Filter strictly to up to 4 examiners/reviewers (no Penguji ke-5 and no Revisi Kaprodi section per Alteration)
   const reviewerEvaluations = studentThesis.evaluations
-    .filter((ev) => ev.evaluatorRole !== 'Kaprodi')
+    .filter(ev => ev.evaluatorRole !== 'Kaprodi' && ev.stage !== 'Revisi Proposal')
+    .filter((ev, index, list) => list.findIndex(other => other.evaluatorId === ev.evaluatorId) === index)
     .slice(0, 4);
-
-  const allRequirements = reviewerEvaluations.flatMap((ev) => ev.requirements ?? []);
+  const requirements = [...new Set(reviewerEvaluations.flatMap(ev => ev.requirements ?? []))];
+  const canRevise = studentThesis.id === activeThesis?.id && needsRevision(studentThesis.status);
+  const schedule = studentThesis.defenseSchedule;
+  const score = studentThesis.defenseScore;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="headline-lg text-[#0B1C30]">Hasil Sidang Proposal</h1>
-          <p className="body-base text-[#475569] mt-1">
-            {studentThesis.studentName} — NRP {studentThesis.studentNim} — Periode{' '}
-            {studentThesis.semester}
-          </p>
+          <h1 className="headline-lg">Hasil Sidang Proposal</h1>
+          <p className="body-base mt-1 text-ink-secondary">{studentThesis.studentName} · NRP {studentThesis.studentNim} · {studentThesis.semester}</p>
         </div>
-        <StatusBadge status={studentThesis.status} />
+        {records.length > 1 && <label className="body-medium max-w-full">Riwayat pengajuan
+          <select className="input-field mt-1 max-w-96" id="hasil-pengajuan" value={studentThesis.id} onChange={e => setSelectedId(e.target.value)}>
+            {records.map(thesis => <option key={thesis.id} value={thesis.id}>{thesis.id === activeThesis?.id ? 'Aktif' : 'Riwayat'} · {thesis.title}</option>)}
+          </select>
+        </label>}
       </div>
-
-      {/* Summary Card */}
-      <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E2E8F0]">
-          <h2 className="headline-md text-[#0F2A66]">Informasi Tugas Akhir &amp; Hasil Sidang</h2>
-          {studentThesis.status === 'Perlu Revisi' || studentThesis.status === 'Diperbaiki' ? (
-            <button
-              type="button"
-              onClick={() => setActiveTab('upload-revisi')}
-              className="btn-primary shrink-0"
-            >
-              Unggah Revisi Sidang
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setActiveTab('download-proposal')}
-              className="btn-primary shrink-0"
-            >
-              Unduh Berkas Proposal
-            </button>
-          )}
+      <section className="student-panel p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <StatusBadge status={studentThesis.status} />
+          <span className="body-medium text-ink-secondary">Nilai sidang · <strong className="text-navy">{score ? score.totalScore.toFixed(1) + ' (' + score.grade + ')' : 'Belum dinilai'}</strong></span>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-          <div>
-            <span className="label-md uppercase text-[#475569]">Judul yang Disetujui</span>
-            <p className="body-semibold text-[#0B1C30] mt-1">{studentThesis.title}</p>
-          </div>
-          {studentThesis.newTitle && (
-            <div>
-              <span className="label-md uppercase text-[#475569]">
-                Judul Baru (Penyesuaian Sidang)
-              </span>
-              <p className="body-semibold text-[#0F2A66] mt-1">{studentThesis.newTitle}</p>
-            </div>
-          )}
-          <div>
-            <span className="label-md uppercase text-[#475569]">Periode Pengerjaan TA</span>
-            <p className="body-medium text-[#0B1C30] mt-1">{studentThesis.semester}</p>
-          </div>
-          <div>
-            <span className="label-md uppercase text-[#475569]">Nilai Sidang Proposal</span>
-            <p className="headline-md text-[#0F2A66] mt-1">
-              {studentThesis.defenseScore
-                ? `${studentThesis.defenseScore.totalScore.toFixed(1)} (${studentThesis.defenseScore.grade})`
-                : 'Belum dinilai'}
-            </p>
-          </div>
-          <div>
-            <span className="label-md uppercase text-[#475569]">Dosen Pembimbing</span>
-            <p className="body-medium text-[#0B1C30] mt-1">
-              {getLecturerName(lecturers, studentThesis.advisor1Id)}
-            </p>
-          </div>
-          <div>
-            <span className="label-md uppercase text-[#475569]">Co-Pembimbing</span>
-            <p className="body-medium text-[#0B1C30] mt-1">
-              {getLecturerName(lecturers, studentThesis.advisor2Id)}
-            </p>
-          </div>
-          {studentThesis.defenseSchedule && (
-            <div className="md:col-span-2 pt-3 border-t border-[#E2E8F0]">
-              <span className="label-md uppercase text-[#475569]">Pelaksanaan Sidang</span>
-              <p className="body-medium text-[#0B1C30] mt-1">
-                {formatDateId(studentThesis.defenseSchedule.date)},{' '}
-                {studentThesis.defenseSchedule.time} — {studentThesis.defenseSchedule.room}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {allRequirements.length > 0 && (
-          <div className="mt-5 pt-5 border-t border-[#E2E8F0]">
-            <span className="label-md uppercase text-[#C2410C]">Syarat / Poin Revisi Wajib</span>
-            <ul className="mt-2 space-y-1.5 list-disc list-inside body-base text-[#0B1C30]">
-              {allRequirements.map((req, index) => (
-                <li key={index}>{req}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <h2 className="headline-md text-navy mt-3">{studentThesis.newTitle || studentThesis.title}</h2>
+        {studentThesis.newTitle && <details className="mt-2 text-sm text-ink-secondary"><summary className="cursor-pointer">Judul sebelum penyesuaian</summary><p className="mt-1">{studentThesis.title}</p></details>}
+        <p className="body-base mt-3">Pembimbing · {[studentThesis.advisor1Id, studentThesis.advisor2Id].filter(Boolean).map(id => getLecturerName(lecturers, id)).join(' / ')}</p>
+        {schedule && <p className="body-base text-ink-secondary mt-1">{formatDateId(schedule.date)} · {schedule.time} · {schedule.room}</p>}
+        {requirements.length > 0 && <details className="student-disclosure mt-4">
+          <summary>Syarat perbaikan ({requirements.length})</summary>
+          <ul className="list-disc pl-5 mt-2 space-y-1">{requirements.map(req => <li key={req}>{req}</li>)}</ul>
+        </details>}
+        <button type="button" className="btn-primary mt-4" onClick={() => canRevise
+          ? setActiveTab('upload-revisi')
+          : navigateWithContext('download-proposal', undefined, studentThesis.id)}>
+          {canRevise ? 'Unggah Revisi Sidang' : 'Unduh Berkas Proposal'}
+        </button>
       </section>
 
       {/* Evaluation Detail Table (Max 4 Penguji, No Penguji ke-5, No Revisi Kaprodi) */}
       <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
         <div className="px-6 py-5 border-b border-[#E2E8F0] flex items-center justify-between">
           <h2 className="headline-sm text-[#0B1C30]">
-            Hasil Review Dewan Penguji Proposal (Maksimal 4 Penguji)
+            Catatan penguji
           </h2>
           <span className="code-meta text-[#475569]">{reviewerEvaluations.length} penguji</span>
         </div>

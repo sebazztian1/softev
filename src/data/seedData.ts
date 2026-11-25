@@ -12,6 +12,7 @@ import {
   TopicRecommendation,
   UserAccount,
 } from '../types/portal';
+import { proposalForm } from '../utils/templateDocuments';
 
 const hoursFromNowIso = (hours: number): string =>
   new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
@@ -66,6 +67,19 @@ export const SEED_ACCOUNTS: Record<'mahasiswa' | 'dosen' | 'kaprodi', UserAccoun
     phone: '081131445566',
     initials: 'GS',
   },
+};
+
+export const SEED_NEW_STUDENT: UserAccount = {
+  id: 'usr-mhs-new-01',
+  role: 'mahasiswa',
+  username: 'budi.santoso',
+  name: 'Budi Santoso',
+  identifier: '221116950',
+  department: 'S1 Informatika',
+  email: 'budi.santoso@mhs.istts.ac.id',
+  phone: '',
+  initials: 'BS',
+  ipk: 3.5,
 };
 
 export const SEED_LECTURERS: LecturerProfile[] = [
@@ -956,25 +970,7 @@ export const SEED_ARCHIVE: ArchiveEntry[] = [
 ];
 
 export const SEED_TEMPLATES: OfficialTemplate[] = [
-  {
-    id: 'tpl-01',
-    title: 'Formulir & Template Proposal Tugas Akhir ISTTS (Format Standar)',
-    category: 'Proposal TA',
-    version: 'Edisi 2026.1',
-    fileName: 'Formulir_Proposal_TA_ISTTS_2026.pdf',
-    fileSize: 642500,
-    updatedAt: '2026-08-15',
-    description: 'Formulir resmi pengajuan TA beserta struktur Bab 1 sampai Bab 3 dan margin A4.',
-    pdfLines: [
-      'FORMULIR DAN PEDOMAN PROPOSAL TUGAS AKHIR ISTTS (EDISI 2026.1)',
-      '1. Formulir Persetujuan Judul & Dosen Pembimbing',
-      '2. Abstrak (Bahasa Indonesia, maksimal 250 kata)',
-      '3. Bab 1 Pendahuluan: Latar Belakang, Rumusan Masalah, Tujuan, Batasan Masalah',
-      '4. Bab 2 Tinjauan Pustaka: Penelitian Terkait dan Landasan Teori',
-      '5. Bab 3 Metodologi Penelitian: Arsitektur Sistem, Dataset, Rencana Pengujian',
-      '6. Daftar Pustaka (Format IEEE)',
-    ],
-  },
+  proposalForm,
   {
     id: 'tpl-02',
     title: 'Pedoman Penulisan Sitasi dan Daftar Pustaka IEEE',

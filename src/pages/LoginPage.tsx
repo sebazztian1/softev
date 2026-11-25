@@ -10,6 +10,7 @@ const SIMULATION_ROLES: Array<{
   name: string;
   identifier: string;
   username: string;
+  studentId?: string;
 }> = [
   {
     role: 'mahasiswa',
@@ -17,6 +18,14 @@ const SIMULATION_ROLES: Array<{
     name: 'Kevin Hartanto',
     identifier: 'NRP 221116942 — S1 Informatika',
     username: 'kevin.hartanto',
+  },
+  {
+    role: 'mahasiswa',
+    title: 'Mahasiswa — Belum Upload Proposal',
+    name: 'Budi Santoso',
+    identifier: 'NRP 221116950 — S1 Informatika',
+    username: 'budi.santoso',
+    studentId: 'usr-mhs-new-01',
   },
   {
     role: 'dosen',
@@ -48,9 +57,9 @@ export const LoginPage: React.FC = () => {
       setError('Masukkan username, NRP/NIDN, atau surel dan kata sandi terlebih dahulu.');
       return;
     }
-    const ok = login(identifier);
+    const ok = login(identifier, password);
     if (!ok) {
-      setError('Akun tidak ditemukan. Gunakan username atau akun simulasi yang tersedia di bawah.');
+      setError('Identitas atau kata sandi tidak sesuai.');
     }
   };
 
@@ -111,13 +120,6 @@ export const LoginPage: React.FC = () => {
                 </button>
               </div>
               <div className="flex items-center justify-between mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="code-meta text-[#0284C7] hover:underline cursor-pointer"
-                >
-                  {showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
-                </button>
                 <span className="code-meta text-[#64748B]">
                   Lupa kata sandi: hubungi Departemen IT ISTTS
                 </span>
@@ -151,9 +153,9 @@ export const LoginPage: React.FC = () => {
             <div className="rounded-xl border border-[#E2E8F0] divide-y divide-[#E2E8F0] overflow-hidden">
               {SIMULATION_ROLES.map((item) => (
                 <button
-                  key={item.role}
+                  key={item.studentId ?? item.role}
                   type="button"
-                  onClick={() => loginAsRole(item.role)}
+                  onClick={() => loginAsRole(item.role, item.studentId)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-[#F8FAFC] text-left transition-colors cursor-pointer"
                 >
                   <div className="min-w-0">
