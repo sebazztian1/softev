@@ -28,9 +28,16 @@ const SIMULATION_ROLES: Array<{
   {
     role: 'kaprodi',
     title: 'Ketua Program Studi (Kaprodi)',
-    name: 'Dr. Ir. Gunawan Santoso, M.T.',
-    identifier: 'NIDN 0714088102 — S1 Informatika',
-    username: 'gunawan.santoso',
+    name: 'Dr. Andi Wijaya, S.Kom., M.Kom.',
+    identifier: 'Kaprodi S1-INFORMATIKA',
+    username: 'andi.wijaya',
+  },
+  {
+    role: 'dekan',
+    title: 'Dekan',
+    name: 'Prof. Budi Santoso, Ph.D.',
+    identifier: 'Dekan dan Kaprodi S1-ELEKTRO',
+    username: 'budi.santoso',
   },
 ];
 
@@ -42,6 +49,12 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
+
+  const handleSimulationLogin = (item: (typeof SIMULATION_ROLES)[number]) => {
+    localStorage.removeItem('tuntas-proto-v2:persona');
+    localStorage.removeItem('tuntas-proto-v2:role');
+    loginAsRole(item.role);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,9 +85,9 @@ export const LoginPage: React.FC = () => {
       }
       setFailedAttempts(0);
       setLockedUntil(0);
-      localStorage.setItem('tuntas-proto-v2:persona', username === 'andi.wijaya' ? 'andi' : 'budi');
-      localStorage.setItem('tuntas-proto-v2:role', username === 'andi.wijaya' ? 'KAPRODI' : 'DEKAN');
-      loginAsRole('kaprodi');
+      localStorage.removeItem('tuntas-proto-v2:persona');
+      localStorage.removeItem('tuntas-proto-v2:role');
+      loginAsRole(username === 'andi.wijaya' ? 'kaprodi' : 'dekan');
       return;
     }
     if (username === 'dosen.nonaktif') {
@@ -173,9 +186,9 @@ export const LoginPage: React.FC = () => {
             <div className="rounded-xl border border-[#E2E8F0] divide-y divide-[#E2E8F0] overflow-hidden">
               {SIMULATION_ROLES.map((item) => (
                 <button
-                  key={item.role}
+                  key={item.username}
                   type="button"
-                  onClick={() => loginAsRole(item.role)}
+                  onClick={() => handleSimulationLogin(item)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-[#F8FAFC] text-left transition-colors cursor-pointer"
                 >
                   <div className="min-w-0">

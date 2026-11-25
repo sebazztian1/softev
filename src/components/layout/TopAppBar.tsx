@@ -29,10 +29,18 @@ const KAPRODI_NAV: NavItem[] = [
   { id: 'cari-dokumen', label: 'Cari Dokumen' },
 ];
 
+const DEKAN_NAV: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard Fakultas' },
+  { id: 'proposal', label: 'Daftar Proposal TA/Tesis' },
+  { id: 'approve', label: 'Approve Revisi (QR)' },
+  { id: 'monitoring', label: 'Monitoring' },
+];
+
 const ROLE_LABEL: Record<UserRole, string> = {
   mahasiswa: 'Mahasiswa',
   dosen: 'Dosen',
   kaprodi: 'Kaprodi',
+  dekan: 'Dekan',
 };
 
 interface TopAppBarProps {
@@ -77,6 +85,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
     if (!currentUser) return [];
     if (currentUser.role === 'mahasiswa') return MAHASISWA_NAV;
     if (currentUser.role === 'kaprodi') return KAPRODI_NAV;
+    if (currentUser.role === 'dekan') return DEKAN_NAV;
 
     const roles = currentUser.structuralRoles ?? [];
     const items: NavItem[] = [
@@ -278,7 +287,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
                   <p className="px-4 py-1 label-sm uppercase text-[#64748B]">
                     Simulasi Ganti Peran
                   </p>
-                  {(['mahasiswa', 'dosen', 'kaprodi'] as UserRole[]).map((role) => (
+                  {(['mahasiswa', 'dosen', 'kaprodi', 'dekan'] as UserRole[]).map((role) => (
                     <button
                       key={role}
                       type="button"

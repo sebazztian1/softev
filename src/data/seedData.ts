@@ -11,6 +11,7 @@ import {
   ThesisRecord,
   TopicRecommendation,
   UserAccount,
+  UserRole,
 } from '../types/portal';
 
 const hoursFromNowIso = (hours: number): string =>
@@ -30,7 +31,7 @@ export const AVAILABLE_TAGS = [
   'IoT',
 ];
 
-export const SEED_ACCOUNTS: Record<'mahasiswa' | 'dosen' | 'kaprodi', UserAccount> = {
+export const SEED_ACCOUNTS: Record<UserRole, UserAccount> = {
   mahasiswa: {
     id: 'usr-mhs-01',
     role: 'mahasiswa',
@@ -65,6 +66,17 @@ export const SEED_ACCOUNTS: Record<'mahasiswa' | 'dosen' | 'kaprodi', UserAccoun
     email: 'gunawan.santoso@istts.ac.id',
     phone: '081131445566',
     initials: 'GS',
+  },
+  dekan: {
+    id: 'lec-dekan-01',
+    role: 'dekan',
+    username: 'budi.santoso',
+    name: 'Prof. Budi Santoso, Ph.D.',
+    identifier: '0714088102',
+    department: 'Fakultas',
+    email: 'budi.santoso@istts.ac.id',
+    phone: '081234567891',
+    initials: 'BS',
   },
 };
 

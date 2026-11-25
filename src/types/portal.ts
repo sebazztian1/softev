@@ -1,4 +1,4 @@
-export type UserRole = 'mahasiswa' | 'dosen' | 'kaprodi';
+export type UserRole = 'mahasiswa' | 'dosen' | 'kaprodi' | 'dekan';
 
 export type DosenStructuralRole =
   | 'reviewer-proposal'

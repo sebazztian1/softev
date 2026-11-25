@@ -24,29 +24,19 @@ import { MahasiswaDashboard } from './pages/mahasiswa/MahasiswaDashboard';
 import { RekomendasiJudulPage } from './pages/mahasiswa/RekomendasiJudulPage';
 import { UploadProposalPage } from './pages/mahasiswa/UploadProposalPage';
 import { UploadRevisiPage } from './pages/mahasiswa/UploadRevisiPage';
-import { AdminPortal } from './pages/admin/AdminPortal';
+import { DekanApproveRevisiPage } from './pages/dekan/DekanApproveRevisiPage';
+import { DekanDashboard } from './pages/dekan/DekanDashboard';
+import { DekanMonitoringPage } from './pages/dekan/DekanMonitoringPage';
+import { DekanProposalPage } from './pages/dekan/DekanProposalPage';
 
 const PortalShell: React.FC = () => {
-  const { currentUser, activeTab, logout } = usePortal();
+  const { currentUser, activeTab } = usePortal();
   const [profileOpen, setProfileOpen] = useState(false);
 
   if (!currentUser) {
     return (
       <>
         <LoginPage />
-        <Toast />
-      </>
-    );
-  }
-
-  if (
-    currentUser.role === 'kaprodi' &&
-    localStorage.getItem('tuntas-proto-v2:persona')
-  ) {
-    return (
-      <>
-        <AdminPortal onExit={logout} />
-        <PdfPreviewModal />
         <Toast />
       </>
     );
@@ -88,6 +78,19 @@ const PortalShell: React.FC = () => {
           return <SinkronisasiJadwalPage />;
         default:
           return <DosenDashboard />;
+      }
+    }
+
+    if (currentUser.role === 'dekan') {
+      switch (activeTab) {
+        case 'proposal':
+          return <DekanProposalPage />;
+        case 'approve':
+          return <DekanApproveRevisiPage />;
+        case 'monitoring':
+          return <DekanMonitoringPage />;
+        default:
+          return <DekanDashboard />;
       }
     }
 

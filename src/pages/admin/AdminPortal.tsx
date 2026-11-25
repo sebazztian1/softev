@@ -36,7 +36,11 @@ import {
 } from '../../types/adminPortal';
 import { formatDateId } from '../../utils/format';
 
-type Props = { onExit: () => void };
+type Props = {
+  onExit: () => void;
+  initialRole?: 'KAPRODI' | 'DEKAN';
+  initialPersona?: 'andi' | 'budi';
+};
 type ModalState = 'assign' | 'confirm-approval' | 'reviewers' | null;
 
 const KAPRODI_MENU = [
@@ -212,12 +216,12 @@ const ReviewActions: React.FC<{
   );
 };
 
-export const AdminPortal: React.FC<Props> = ({ onExit }) => {
+export const AdminPortal: React.FC<Props> = ({ onExit, initialRole, initialPersona }) => {
   const { showToast } = usePortal();
   const [role, setRole] = useState<'KAPRODI' | 'DEKAN'>(() =>
-    (localStorage.getItem('tuntas-proto-v2:role') as 'KAPRODI' | 'DEKAN') || 'KAPRODI',
+    initialRole ?? (localStorage.getItem('tuntas-proto-v2:role') as 'KAPRODI' | 'DEKAN') ?? 'KAPRODI',
   );
-  const persona = localStorage.getItem('tuntas-proto-v2:persona') ?? 'andi';
+  const persona = initialPersona ?? localStorage.getItem('tuntas-proto-v2:persona') ?? 'andi';
   const isDualRole = persona === 'budi';
   const currentProgram = persona === 'budi' && role === 'KAPRODI' ? 'S1-ELEKTRO' : 'S1-INFORMATIKA';
   const defaultName = persona === 'budi' ? 'Prof. Budi Santoso, Ph.D.' : 'Dr. Andi Wijaya, S.Kom., M.Kom.';
@@ -225,8 +229,15 @@ export const AdminPortal: React.FC<Props> = ({ onExit }) => {
   const [profileEmail, setProfileEmail] = useState(() => localStorage.getItem(`tuntas-proto-v2:${persona}:profile-email`) ?? (persona === 'budi' ? 'budi.santoso@istts.ac.id' : 'andi.wijaya@istts.ac.id'));
   const [route, setRoute] = useState(() => {
     const path = window.location.pathname;
+    if (role === 'DEKAN' && path.startsWith('/kaprodi')) return '/dekan';
+    if (role === 'KAPRODI' && path.startsWith('/dekan')) return '/kaprodi';
     return path.startsWith('/dekan') || path.startsWith('/kaprodi') ? path : role === 'DEKAN' ? '/dekan' : '/kaprodi';
   });
+  useEffect(() => {
+    if (window.location.pathname !== route) {
+      window.history.replaceState({}, '', route);
+    }
+  }, [route]);
   const [proposals, setProposals] = useState<AdminProposal[]>(() => {
     if (new URLSearchParams(window.location.search).get('reset') === '1') {
       localStorage.removeItem('tuntas-proto-v2:proposals');

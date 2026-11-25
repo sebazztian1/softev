@@ -90,6 +90,8 @@ function loadState(): PersistedState {
         'tuntas-proto-v2:role',
         'tuntas-proto-v2:proposals',
         'tuntas-proto-v2:revisions',
+        'tuntas-proto-v2:dekan:revision-code',
+        'tuntas-proto-v2:dekan:last-decision',
         'tuntas-proto-v2:lecturers',
         'tuntas-proto-v2:quotas',
         'tuntas-proto-v2:andi:profile-name',
@@ -104,7 +106,7 @@ function loadState(): PersistedState {
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
     const fallback = buildInitialState();
     return {
-      accounts: parsed.accounts ?? fallback.accounts,
+      accounts: { ...fallback.accounts, ...parsed.accounts },
       currentRole: parsed.currentRole ?? null,
       activeTab: parsed.activeTab ?? 'dashboard',
       activeSubTab: parsed.activeSubTab ?? null,
