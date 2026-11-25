@@ -22,15 +22,29 @@ import { MahasiswaDashboard } from './pages/mahasiswa/MahasiswaDashboard';
 import { RekomendasiJudulPage } from './pages/mahasiswa/RekomendasiJudulPage';
 import { UploadProposalPage } from './pages/mahasiswa/UploadProposalPage';
 import { UploadRevisiPage } from './pages/mahasiswa/UploadRevisiPage';
+import { AdminPortal } from './pages/admin/AdminPortal';
 
 const PortalShell: React.FC = () => {
-  const { currentUser, activeTab } = usePortal();
+  const { currentUser, activeTab, logout } = usePortal();
   const [profileOpen, setProfileOpen] = useState(false);
 
   if (!currentUser) {
     return (
       <>
         <LoginPage />
+        <Toast />
+      </>
+    );
+  }
+
+  if (
+    currentUser.role === 'kaprodi' &&
+    localStorage.getItem('tuntas-proto-v2:persona')
+  ) {
+    return (
+      <>
+        <AdminPortal onExit={logout} />
+        <PdfPreviewModal />
         <Toast />
       </>
     );

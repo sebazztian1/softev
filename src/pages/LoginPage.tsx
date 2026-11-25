@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, RotateCcw } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { usePortal } from '../context/PortalContext';
 import { IsttsLogo } from '../components/ui/IsttsLogo';
 import { UserRole } from '../types/portal';
@@ -34,7 +34,10 @@ export const LoginPage: React.FC = () => {
   const { login, loginAsRole, resetDemoData } = usePortal();
   const [identifier, setIdentifier] = useState('221116942');
   const [password, setPassword] = useState('istts2026');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +46,39 @@ export const LoginPage: React.FC = () => {
       setError('Masukkan NIM/NIDN/Surel dan kata sandi terlebih dahulu.');
       return;
     }
+    const username = identifier.trim().toLowerCase();
+    if (username === 'andi.wijaya' || username === 'budi.santoso') {
+      if (Date.now() < lockedUntil) {
+        const remainingMinutes = Math.ceil((lockedUntil - Date.now()) / 60000);
+        setError(`E-AUTH-002 — Akun terkunci setelah 5 kali percobaan masuk yang gagal. Coba lagi dalam ${remainingMinutes} menit atau hubungi Departemen IT.`);
+        return;
+      }
+      if (password !== 'Demo#2026') {
+        const attempts = failedAttempts + 1;
+        setFailedAttempts(attempts);
+        if (attempts >= 5) {
+          setLockedUntil(Date.now() + 5 * 60 * 1000);
+          setFailedAttempts(0);
+          setError('E-AUTH-002 — Akun terkunci setelah 5 kali percobaan masuk yang gagal. Coba lagi dalam 5 menit atau hubungi Departemen IT.');
+        } else {
+          const remaining = 5 - attempts;
+          setError(`E-AUTH-001 — Username/NRP atau kata sandi tidak sesuai. Periksa kembali data yang dimasukkan.${attempts >= 3 ? ` Sisa percobaan: ${remaining}.` : ''}`);
+        }
+        return;
+      }
+      setFailedAttempts(0);
+      setLockedUntil(0);
+      localStorage.setItem('tuntas-proto-v2:persona', username === 'andi.wijaya' ? 'andi' : 'budi');
+      localStorage.setItem('tuntas-proto-v2:role', username === 'andi.wijaya' ? 'KAPRODI' : 'DEKAN');
+      loginAsRole('kaprodi');
+      return;
+    }
+    if (username === 'dosen.nonaktif') {
+      setError('Akun tidak aktif. Hubungi Departemen IT untuk mengaktifkan kembali akun Anda.');
+      return;
+    }
+    localStorage.removeItem('tuntas-proto-v2:persona');
+    localStorage.removeItem('tuntas-proto-v2:role');
     const ok = login(identifier);
     if (!ok) {
       setError('Akun tidak ditemukan. Gunakan akun simulasi yang tersedia di bawah.');
@@ -66,7 +102,7 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             <div>
               <label htmlFor="login-id" className="block label-md text-[#0B1C30] mb-1.5">
-                NIM / NIDN / Surel Institusi
+                Username / NIM / NIDN
               </label>
               <input
                 id="login-id"
@@ -84,12 +120,20 @@ export const LoginPage: React.FC = () => {
               </label>
               <input
                 id="login-pw"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Masukkan kata sandi"
-                className="input-field"
+                className="input-field pr-12"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="relative -mt-[34px] ml-auto mr-3 flex h-6 items-center text-[#475569]"
+                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
 
             {error && (
@@ -99,8 +143,11 @@ export const LoginPage: React.FC = () => {
             )}
 
             <button type="submit" className="btn-primary w-full">
-              Masuk ke Portal
+              Masuk
             </button>
+            <p className="body-base text-[#475569]">
+              Jika lupa kata sandi, hubungi Departemen IT.
+            </p>
           </form>
 
           <div className="mt-7 pt-6 border-t border-[#E2E8F0]">
