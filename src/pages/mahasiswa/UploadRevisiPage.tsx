@@ -131,7 +131,7 @@ export function UploadRevisiPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="headline-lg">Upload Revisi</h1>
-          <p className="body-base text-ink-secondary mt-1">{currentUser.name} · {period.semesterLabel}</p>
+          <p className="body-base text-ink-secondary mt-1">{currentUser.name} · {thesis.semester}</p>
         </div>
         <StatusBadge status={thesis.status} />
       </header>

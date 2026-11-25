@@ -45,7 +45,7 @@ export const MahasiswaDashboard: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="student-panel p-5 sm:p-6 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="label-md text-ink-secondary">Tugas akhir · {period.semesterLabel}</h2>
+            <h2 className="label-md text-ink-secondary">Tugas akhir · {thesis?.semester ?? period.semesterLabel}</h2>
             {thesis && <StatusBadge status={thesis.status} />}
           </div>
           <p className="headline-md mt-3 text-navy">{thesis?.newTitle || thesis?.title || 'Belum ada berkas proposal yang diunggah.'}</p>

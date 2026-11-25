@@ -82,6 +82,46 @@ export const SEED_NEW_STUDENT: UserAccount = {
   ipk: 3.5,
 };
 
+export const SEED_QUOTA_STUDENT: UserAccount = {
+  id: 'usr-mhs-quota-01',
+  role: 'mahasiswa',
+  username: 'raka.pratama',
+  name: 'Raka Pratama',
+  identifier: '221116951',
+  department: 'S1 Informatika',
+  email: 'raka.pratama@mhs.istts.ac.id',
+  phone: '',
+  initials: 'RP',
+  ipk: 3.6,
+};
+
+export const SEED_LATE_STUDENT: UserAccount = {
+  id: 'usr-mhs-late-01',
+  role: 'mahasiswa',
+  username: 'dina.putri',
+  name: 'Dina Putri',
+  identifier: '221116952',
+  department: 'S1 Informatika',
+  email: 'dina.putri@mhs.istts.ac.id',
+  phone: '',
+  initials: 'DP',
+  ipk: 3.65,
+  proposalDeadline: '2026-11-24T23:59:00+07:00',
+};
+
+export const SEED_LATE_REVISION_STUDENT: UserAccount = {
+  id: 'usr-mhs-late-revision-01',
+  role: 'mahasiswa',
+  username: 'fira.anindya',
+  name: 'Fira Anindya',
+  identifier: '221116953',
+  department: 'S1 Informatika',
+  email: 'fira.anindya@mhs.istts.ac.id',
+  phone: '',
+  initials: 'FA',
+  ipk: 3.7,
+};
+
 export const SEED_LECTURERS: LecturerProfile[] = [
   {
     id: 'lec-01',
@@ -968,6 +1008,93 @@ export const SEED_ARCHIVE: ArchiveEntry[] = [
       'Mengukur overhead latensi penerapan Cilium eBPF policy enforcement pada topologi multi-region.',
   },
 ];
+
+// Existing archive identity and topic provide the fourth active Hendra allocation for the quota demo.
+const quotaArchive = SEED_ARCHIVE[0];
+export const SEED_QUOTA_ALLOCATION: ThesisRecord = {
+  id: 'ta-demo-quota-01',
+  studentId: 'usr-demo-' + quotaArchive.studentNim,
+  studentName: quotaArchive.studentName,
+  studentNim: quotaArchive.studentNim,
+  ipk: quotaArchive.ipk,
+  programStudi: 'S1 Informatika',
+  semester: SEED_PERIOD.semesterLabel,
+  submissionType: 'Judul Baru',
+  title: quotaArchive.title,
+  field: quotaArchive.field,
+  tags: quotaArchive.tags,
+  sksWeight: 6,
+  abstract: quotaArchive.abstract,
+  stage: 'Verifikasi Kaprodi',
+  status: 'Menunggu Verifikasi',
+  advisor1Id: 'lec-01',
+  advisor2Id: 'lec-02',
+  proposalReviewers: [],
+  taExaminers: [],
+  evaluations: [],
+  updatedAt: daysAgoIso(1),
+  submissions: [{
+    id: 'sub-demo-quota-01',
+    kind: 'proposal',
+    versionLabel: 'Proposal v1.0',
+    fileName: quotaArchive.studentNim + '_Proposal_TA_Demo.pdf',
+    fileSize: 0,
+    uploadedAt: daysAgoIso(1),
+    uploadedBy: quotaArchive.studentName,
+    summary: quotaArchive.abstract,
+    hasRealBlob: false,
+  }],
+};
+
+const revisionSource = SEED_THESES[0];
+const lateRevisionStudent = SEED_LATE_REVISION_STUDENT;
+export const SEED_LATE_REVISION_THESIS: ThesisRecord = {
+  id: 'ta-demo-late-revision-01',
+  studentId: lateRevisionStudent.id,
+  studentName: lateRevisionStudent.name,
+  studentNim: lateRevisionStudent.identifier,
+  ipk: 3.7,
+  programStudi: lateRevisionStudent.department,
+  semester: 'Genap 2025/2026',
+  submissionType: 'Judul Baru',
+  title: revisionSource.title,
+  field: revisionSource.field,
+  tags: revisionSource.tags,
+  sksWeight: revisionSource.sksWeight,
+  abstract: revisionSource.abstract,
+  stage: 'Revisi Proposal',
+  status: 'Perlu Revisi',
+  advisor1Id: revisionSource.advisor1Id,
+  advisor2Id: revisionSource.advisor2Id,
+  proposalReviewers: revisionSource.proposalReviewers,
+  taExaminers: revisionSource.taExaminers,
+  revisionDeadline: '2026-11-24T23:59:00+07:00',
+  updatedAt: '2026-11-23T10:00:00+07:00',
+  evaluations: [{
+    ...revisionSource.evaluations[0],
+    id: 'eval-demo-late-revision-01',
+    evaluatedAt: '2026-11-23T10:00:00+07:00',
+  }],
+  submissions: [{
+    id: 'sub-demo-late-revision-proposal-01',
+    kind: 'proposal',
+    versionLabel: 'Proposal v1.0',
+    fileName: '221116953_Fira_Anindya_Proposal_TA_v1.pdf',
+    fileSize: 0,
+    uploadedAt: '2026-11-20T10:00:00+07:00',
+    uploadedBy: lateRevisionStudent.name,
+    summary: revisionSource.abstract,
+    hasRealBlob: false,
+    pdfTitle: 'PROPOSAL TUGAS AKHIR - VERSI 1.0',
+    pdfLines: [
+      'Mahasiswa: Fira Anindya (221116953)',
+      'Program Studi: S1 Informatika - ISTTS',
+      'Judul: ' + revisionSource.title,
+      'Periode: Genap 2025/2026',
+      'Abstrak: ' + revisionSource.abstract,
+    ],
+  }],
+};
 
 export const SEED_TEMPLATES: OfficialTemplate[] = [
   proposalForm,

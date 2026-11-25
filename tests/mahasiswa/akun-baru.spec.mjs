@@ -23,7 +23,7 @@ test('52. Akun baru tersedia pada penyimpanan lama dan masuk dengan NRP atau use
   await expect(page.locator('main')).toContainText('Budi Santoso');
   await keluar(page, 'Budi');
   await loginBudi(page, 'budi.santoso');
-  expect((await state(page)).studentAccounts).toHaveLength(2);
+  expect((await state(page)).studentAccounts).toHaveLength(5);
 });
 
 test('53. Akses cepat akun baru menampilkan keadaan kosong di seluruh halaman pribadinya', async ({ page }) => {
@@ -53,7 +53,7 @@ test('54. Pengajuan perdana dan email akun baru tersimpan terpisah dari data Kev
   await page.locator('#prop-title').fill('Pengajuan perdana Budi');
   await page.locator('#prop-field').selectOption('Rekayasa Perangkat Lunak');
   await page.locator('#prop-abstract').fill('Pengujian pengajuan pertama akun mahasiswa baru.');
-  await page.locator('#prop-adv1').selectOption('lec-01');
+  await page.locator('#prop-adv1').selectOption('lec-02');
   await page.getByRole('button', { name: 'IoT', exact: true }).click();
   await page.getByRole('button', { name: 'Lanjut ke unggah berkas' }).click();
   await file(page);

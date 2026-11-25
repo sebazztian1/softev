@@ -38,6 +38,7 @@ export interface UserAccount {
   phone: string;
   initials: string;
   ipk?: number;
+  proposalDeadline?: string;
   structuralRoles?: DosenStructuralRole[];
 }
 

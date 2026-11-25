@@ -2,6 +2,11 @@ import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, 
 import {
   SEED_ACCOUNTS,
   SEED_NEW_STUDENT,
+  SEED_QUOTA_STUDENT,
+  SEED_LATE_STUDENT,
+  SEED_LATE_REVISION_STUDENT,
+  SEED_LATE_REVISION_THESIS,
+  SEED_QUOTA_ALLOCATION,
   SEED_ARCHIVE,
   SEED_BAA_ROOM_SLOTS,
   SEED_DOCTORAL_STUDENTS,
@@ -42,7 +47,7 @@ import { deleteFileBlob, saveFileBlob } from '../utils/fileStorage';
 import { flushSync } from 'react-dom';
 import { getRevisionDetails, needsRevision, nextRevisionToken, type RevisionDetails } from '../utils/revision';
 import { formatDateTimeId, formatFileSize } from '../utils/format';
-import { getAdvisorQuotaError, validateStudentPdf } from '../utils/studentSubmission';
+import { getAdvisorQuotaError, getProposalDeadline, validateStudentPdf } from '../utils/studentSubmission';
 
 const STORAGE_KEY = 'istts_portal_ta_state_v3';
 
@@ -79,13 +84,13 @@ function releaseDraftTopic(state: PersistedState): TopicRecommendation[] {
 function buildInitialState(): PersistedState {
   return {
     accounts: SEED_ACCOUNTS,
-    studentAccounts: [SEED_ACCOUNTS.mahasiswa, SEED_NEW_STUDENT],
+    studentAccounts: [SEED_ACCOUNTS.mahasiswa, SEED_NEW_STUDENT, SEED_QUOTA_STUDENT, SEED_LATE_STUDENT, SEED_LATE_REVISION_STUDENT],
     currentRole: null,
     activeTab: 'dashboard',
     activeSubTab: null,
     focusedThesisId: null,
     lecturers: SEED_LECTURERS,
-    theses: SEED_THESES,
+    theses: [...SEED_THESES, SEED_QUOTA_ALLOCATION, SEED_LATE_REVISION_THESIS],
     topics: SEED_TOPICS,
     pendingTopic: null,
     archive: SEED_ARCHIVE,
@@ -133,7 +138,13 @@ function loadState(): PersistedState {
       activeSubTab: parsed.activeSubTab ?? null,
       focusedThesisId: parsed.focusedThesisId ?? null,
       lecturers: parsed.lecturers ?? fallback.lecturers,
-      theses: parsed.theses ?? fallback.theses,
+      theses: parsed.theses
+        ? [...parsed.theses, ...(!parsed.studentAccounts?.some(account => account.id === SEED_QUOTA_STUDENT.id) &&
+            !parsed.theses.some(thesis => thesis.id === SEED_QUOTA_ALLOCATION.id) ? [SEED_QUOTA_ALLOCATION] : []),
+            ...(!parsed.studentAccounts?.some(account => account.id === SEED_LATE_REVISION_STUDENT.id) &&
+            !parsed.theses.some(thesis => thesis.studentId === SEED_LATE_REVISION_STUDENT.id)
+              ? [SEED_LATE_REVISION_THESIS] : [])]
+        : fallback.theses,
       topics: parsed.topics ?? fallback.topics,
       pendingTopic: parsed.pendingTopic ?? null,
       archive: parsed.archive ?? fallback.archive,
@@ -520,7 +531,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (current.currentRole !== 'mahasiswa' || current.accounts.mahasiswa.id !== student.id) {
         throw new Error('Sesi mahasiswa telah berubah. Buka kembali formulir pengajuan.');
       }
-      if (Date.parse(current.period.proposalDeadline) <= Date.now()) {
+      if (Date.parse(getProposalDeadline(current.accounts.mahasiswa, current.period)) <= Date.now()) {
         throw new Error('Batas waktu pengajuan proposal telah berakhir.');
       }
       if (!payload.title.trim() || !payload.field.trim() || !payload.abstract.trim() || !payload.tags.length) {
@@ -1180,7 +1191,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const claimTopicForProposal = (topic: TopicRecommendation) => {
     const student = state.accounts.mahasiswa;
     if (state.currentRole !== 'mahasiswa') return;
-    if (Date.parse(state.period.proposalDeadline) <= Date.now()) {
+    if (Date.parse(getProposalDeadline(state.accounts.mahasiswa, state.period)) <= Date.now()) {
       showToast('Batas waktu pengajuan proposal telah berakhir.', 'error');
       return;
     }
@@ -1380,7 +1391,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     templates: state.templates,
     notifications: roleNotifications,
     unreadCount,
-    period: state.period,
+    period: currentUser?.role === 'mahasiswa'
+      ? { ...state.period, proposalDeadline: getProposalDeadline(currentUser, state.period) }
+      : state.period,
     maxQuotas: state.maxQuotas,
     baaRoomSlots: state.baaRoomSlots,
     doctoralStudents: state.doctoralStudents,

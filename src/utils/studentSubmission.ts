@@ -2,6 +2,13 @@ import type { AcademicPeriod, LecturerProfile, MaxQuotaSetting, ThesisRecord, Us
 
 type Student = Pick<UserAccount, 'id' | 'department'>;
 
+export function getProposalDeadline(student: UserAccount, period: AcademicPeriod): string {
+  if (student.proposalDeadline && Date.parse(student.proposalDeadline) < Date.parse(period.proposalDeadline)) {
+    return student.proposalDeadline;
+  }
+  return period.proposalDeadline;
+}
+
 export async function validateStudentPdf(file: File, maxSizeMb = 20): Promise<string | null> {
   if (!file.name.toLowerCase().endsWith('.pdf')) return 'Hanya berkas berformat .PDF yang diperbolehkan.';
   if (file.size > maxSizeMb * 1024 * 1024) return `Ukuran berkas melebihi batas maksimal ${maxSizeMb} MB.`;

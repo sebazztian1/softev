@@ -14,6 +14,15 @@ Dokumentasi implementasi dan pengujian per 25 November 2026. Portal berjalan seb
 | --- | --- | --- | --- | --- |
 | Kevin Hartanto | kevin.hartanto | 221116942 | istts2026 | Memiliki proposal, catatan sidang, dan riwayat revisi dari data dummy proyek |
 | Budi Santoso | budi.santoso | 221116950 | istts2026 | Belum mengunggah proposal |
+| Raka Pratama | raka.pratama | 221116951 | istts2026 | Belum mengunggah proposal, mencoba pembimbing yang kuotanya penuh |
+| Dina Putri | dina.putri | 221116952 | istts2026 | Terlambat mengunggah proposal, tenggat 24 November 2026 pukul 23.59 WIB |
+| Fira Anindya | fira.anindya | 221116953 | istts2026 | Proposal periode Genap 2025/2026 membutuhkan revisi, tenggat revisi sudah berakhir |
+
+Akun Fira memakai proposal periode lama dari materi dummy dengan identitas serta ID berkas tersendiri. Tenggat revisinya **24 November 2026 pukul 23.59 WIB**. Halaman Upload Revisi menampilkan batas waktu berakhir dan catatan penilai, sementara berkas proposal serta hasil sidang tetap dapat dibaca. Akun tersedia pada akses cepat **Mahasiswa — Terlambat Upload Revisi**.
+
+Akun Dina memakai tenggat pengajuan khusus untuk skenario terlambat. Dasbor menampilkan pengajuan ditutup, halaman unggah menutup formulir, dan penyimpanan serta reservasi topik memeriksa tenggat yang sama. Tenggat khusus mengambil batas yang lebih awal antara batas akun dan periode. Akun tersedia otomatis saat penyimpanan lama dimuat, serta melalui akses cepat **Mahasiswa — Terlambat Upload Proposal**.
+
+Akun Raka tersedia melalui akses cepat **Mahasiswa — Kuota Pembimbing Penuh**. Hendra Wijaya mempunyai 4/4 mahasiswa aktif setelah penambahan pengajuan pendukung Andreas Wijaya memakai identitas, judul, dan abstrak dari arsip dummy. Pembimbing penuh ditandai pada pilihan dan ditolak oleh validasi pengajuan. Pembimbing dengan kuota tersedia dapat dipilih untuk melanjutkan. Akun dan pengajuan pendukung ditambahkan saat penyimpanan lama dimuat.
 
 Akun Budi ditambahkan sesuai permintaan untuk mencoba pengajuan perdana. Nama dan NRP akun baru dipilih untuk kebutuhan simulasi. Akun ini juga tersedia pada tombol akses cepat **Mahasiswa — Belum Upload Proposal**. Penyimpanan lama otomatis memperoleh akun tambahan saat aplikasi dimuat. Pengajuan, email profil, dan notifikasi terkait proposal mengikuti mahasiswa yang sedang masuk.
 
@@ -126,7 +135,7 @@ Sebagian PDF dummy merupakan ringkasan yang dibuat dari metadata dan isi contoh 
 
 ## Pemeriksaan ulang
 
-Hasil akhir pada 25 November 2026 adalah **54 skenario lulus, 0 gagal** dalam 59,1 detik pada Microsoft Edge. Build TypeScript dan Vite berhasil. Vite memberikan peringatan ukuran bundle JavaScript utama sebesar sekitar 500,9 kB sebelum gzip.
+Hasil akhir pada 25 November 2026 adalah **62 skenario lulus, 0 gagal** dalam 55,7 detik pada Microsoft Edge. Build TypeScript dan Vite berhasil. Vite memberikan peringatan ukuran bundle JavaScript utama sebesar sekitar 594,5 kB sebelum gzip.
 
 Perintah pengujian membangun aplikasi dengan TypeScript dan Vite, kemudian menjalankan Playwright melalui alur antarmuka mahasiswa.
 
@@ -148,7 +157,11 @@ npm.cmd run test:mahasiswa
 | Revisi, perubahan data, PDF, tenggat, versi, dan pembacaan QR | 8 | [revisi.spec.mjs](tests/mahasiswa/revisi.spec.mjs) |
 | Berkas, pratinjau, unduhan, pencarian, dan pagination | 7 | [berkas.spec.mjs](tests/mahasiswa/berkas.spec.mjs) |
 | Akun baru, penyimpanan lama, keadaan kosong, dan pemisahan data | 3 | [akun-baru.spec.mjs](tests/mahasiswa/akun-baru.spec.mjs) |
-| Total | 54 | Antarmuka mahasiswa |
+| Integrasi login mahasiswa, dekan, dan kaprodi setelah merge | 2 | [integrasi-login.spec.mjs](tests/mahasiswa/integrasi-login.spec.mjs) |
+| Akun skenario kuota penuh, migrasi data, penolakan, dan pembimbing alternatif | 2 | [kuota-penuh.spec.mjs](tests/mahasiswa/kuota-penuh.spec.mjs) |
+| Akun terlambat, penutupan formulir, reservasi, dan pengiriman setelah tenggat | 2 | [terlambat.spec.mjs](tests/mahasiswa/terlambat.spec.mjs) |
+| Akun revisi terlambat, migrasi data, catatan, dan berkas pengajuan lama | 2 | [terlambat-revisi.spec.mjs](tests/mahasiswa/terlambat-revisi.spec.mjs) |
+| Total | 62 | Antarmuka mahasiswa dan integrasi login |
 
 Pengujian navigasi mencakup viewport desktop 1440 px dan ponsel 390 px. PDF unggahan dibandingkan byte demi byte dengan unduhannya. F-048 diperiksa ukuran serta sidik berkasnya. QR pada layar didekode untuk memeriksa token. Tenggat diuji pada formulir tertutup dan formulir yang sudah terbuka. Skenario kuota, status, dan batas waktu menggunakan variasi terisolasi dari data proyek pada konteks browser pengujian.
 
