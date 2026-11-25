@@ -8,13 +8,15 @@ import { PortalProvider, usePortal } from './context/PortalContext';
 import { LoginPage } from './pages/LoginPage';
 import { DosenDashboard } from './pages/dosen/DosenDashboard';
 import { DosenRekomendasiPage } from './pages/dosen/DosenRekomendasiPage';
-import { MahasiswaBimbinganPage } from './pages/dosen/MahasiswaBimbinganPage';
+import { PromotorS3Page } from './pages/dosen/PromotorS3Page';
 import { SidangPenilaianPage } from './pages/dosen/SidangPenilaianPage';
+import { SinkronisasiJadwalPage } from './pages/dosen/SinkronisasiJadwalPage';
+import { TulisReviewPage } from './pages/dosen/TulisReviewPage';
 import { KaprodiDashboard } from './pages/kaprodi/KaprodiDashboard';
-import { MonitoringTaPage } from './pages/kaprodi/MonitoringTaPage';
-import { PengaturanPeriodePage } from './pages/kaprodi/PengaturanPeriodePage';
+import { LaporanKaprodiPage } from './pages/kaprodi/LaporanKaprodiPage';
 import { PenjadwalanSidangPage } from './pages/kaprodi/PenjadwalanSidangPage';
-import { VerifikasiProposalPage } from './pages/kaprodi/VerifikasiProposalPage';
+import { PlottingReviewerPage } from './pages/kaprodi/PlottingReviewerPage';
+import { SettingMaksimumPage } from './pages/kaprodi/SettingMaksimumPage';
 import { CariProposalPage } from './pages/mahasiswa/CariProposalPage';
 import { DownloadProposalPage } from './pages/mahasiswa/DownloadProposalPage';
 import { HasilSidangPage } from './pages/mahasiswa/HasilSidangPage';
@@ -72,28 +74,34 @@ const PortalShell: React.FC = () => {
 
     if (currentUser.role === 'dosen') {
       switch (activeTab) {
-        case 'mahasiswa-bimbingan':
-          return <MahasiswaBimbinganPage />;
-        case 'sidang-penilaian':
+        case 'tulis-review':
+          return <TulisReviewPage />;
+        case 'sidang-proposal':
           return <SidangPenilaianPage />;
         case 'rekomendasi-judul':
           return <DosenRekomendasiPage />;
-        case 'arsip-proposal':
-          return <CariProposalPage pageTitle="Arsip Proposal & TA" />;
+        case 'cari-dokumen':
+          return <CariProposalPage pageTitle="Cari Dokumen TA & Tesis" />;
+        case 'promotor-s3':
+          return <PromotorS3Page />;
+        case 'sinkronisasi-jadwal':
+          return <SinkronisasiJadwalPage />;
         default:
           return <DosenDashboard />;
       }
     }
 
     switch (activeTab) {
-      case 'verifikasi-proposal':
-        return <VerifikasiProposalPage />;
+      case 'plotting-reviewer':
+        return <PlottingReviewerPage />;
       case 'penjadwalan-sidang':
         return <PenjadwalanSidangPage />;
-      case 'monitoring-ta':
-        return <MonitoringTaPage />;
-      case 'pengaturan-periode':
-        return <PengaturanPeriodePage />;
+      case 'setting-maksimum':
+        return <SettingMaksimumPage />;
+      case 'laporan':
+        return <LaporanKaprodiPage />;
+      case 'cari-dokumen':
+        return <CariProposalPage pageTitle="Cari Dokumen TA & Tesis" />;
       default:
         return <KaprodiDashboard />;
     }

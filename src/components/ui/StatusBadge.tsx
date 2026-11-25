@@ -1,8 +1,16 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Clock, BookmarkCheck } from 'lucide-react';
 import { AcademicStatus } from '../../types/portal';
 
-type BadgeVariant = AcademicStatus | 'Tersedia' | 'Penuh' | 'Terjadwal';
+type BadgeVariant =
+  | AcademicStatus
+  | 'Tersedia'
+  | 'Reserved'
+  | 'Penuh'
+  | 'Terjadwal'
+  | 'Disetujui'
+  | 'Bebas Bentrok'
+  | 'Bentrok';
 
 interface StatusBadgeProps {
   status: BadgeVariant;
@@ -16,7 +24,15 @@ const STYLE_MAP: Record<
     container: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]',
     icon: CheckCircle2,
   },
+  Disetujui: {
+    container: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]',
+    icon: CheckCircle2,
+  },
   Tersedia: {
+    container: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]',
+    icon: CheckCircle2,
+  },
+  'Bebas Bentrok': {
     container: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]',
     icon: CheckCircle2,
   },
@@ -24,11 +40,27 @@ const STYLE_MAP: Record<
     container: 'bg-[#FFEDD5] text-[#C2410C] border-[#FDBA74]',
     icon: AlertTriangle,
   },
+  Diperbaiki: {
+    container: 'bg-[#FFEDD5] text-[#C2410C] border-[#FDBA74]',
+    icon: AlertTriangle,
+  },
+  'Perbaikan Bersyarat': {
+    container: 'bg-[#FFEDD5] text-[#C2410C] border-[#FDBA74]',
+    icon: AlertTriangle,
+  },
+  Reserved: {
+    container: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
+    icon: BookmarkCheck,
+  },
   Ditolak: {
     container: 'bg-[#FEE2E2] text-[#B91C1C] border-[#FCA5A5]',
     icon: XCircle,
   },
   Penuh: {
+    container: 'bg-[#FEE2E2] text-[#B91C1C] border-[#FCA5A5]',
+    icon: XCircle,
+  },
+  Bentrok: {
     container: 'bg-[#FEE2E2] text-[#B91C1C] border-[#FCA5A5]',
     icon: XCircle,
   },

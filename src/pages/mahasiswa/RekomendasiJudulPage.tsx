@@ -9,7 +9,9 @@ import { TopicRecommendation } from '../../types/portal';
 export const RekomendasiJudulPage: React.FC = () => {
   const { topics, claimTopicForProposal } = usePortal();
   const [fieldFilter, setFieldFilter] = useState('Semua');
-  const [statusFilter, setStatusFilter] = useState<'Semua' | 'Tersedia' | 'Penuh'>('Semua');
+  const [statusFilter, setStatusFilter] = useState<'Semua' | 'Tersedia' | 'Reserved' | 'Penuh'>(
+    'Semua',
+  );
   const [selectedTopic, setSelectedTopic] = useState<TopicRecommendation | null>(null);
 
   const fields = useMemo(
@@ -64,12 +66,15 @@ export const RekomendasiJudulPage: React.FC = () => {
               id="rec-status"
               value={statusFilter}
               onChange={(e) =>
-                setStatusFilter(e.target.value as 'Semua' | 'Tersedia' | 'Penuh')
+                setStatusFilter(
+                  e.target.value as 'Semua' | 'Tersedia' | 'Reserved' | 'Penuh',
+                )
               }
               className="input-field"
             >
               <option value="Semua">Semua</option>
               <option value="Tersedia">Tersedia</option>
+              <option value="Reserved">Reserved</option>
               <option value="Penuh">Penuh</option>
             </select>
           </div>
@@ -90,47 +95,53 @@ export const RekomendasiJudulPage: React.FC = () => {
           />
         ) : (
           <div className="divide-y divide-[#E2E8F0]">
-            {filtered.map((topic, idx) => (
-              <div
-                key={topic.id}
-                className={`p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                  idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'
-                }`}
-              >
-                <div className="space-y-1.5 max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <StatusBadge status={topic.status} />
-                    <span className="code-meta text-[#475569]">{topic.field}</span>
-                    <span className="code-meta text-[#475569]">
-                      Kuota: {topic.takenCount}/{topic.quota} mahasiswa
-                    </span>
+            {filtered.map((topic, idx) => {
+              const unavailable = topic.status !== 'Tersedia';
+              return (
+                <div
+                  key={topic.id}
+                  className={`p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                    idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'
+                  }`}
+                >
+                  <div className="space-y-1.5 max-w-3xl">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <StatusBadge status={topic.status} />
+                      <span className="code-meta text-[#475569]">{topic.field}</span>
+                      <span className="code-meta text-[#475569]">
+                        Kuota: {topic.takenCount}/{topic.quota} mahasiswa
+                      </span>
+                    </div>
+                    <h3 className="headline-sm text-[#0B1C30]">{topic.title}</h3>
+                    <p className="body-base text-[#475569]">{topic.description}</p>
+                    <p className="code-meta text-[#0F2A66]">
+                      Dosen Pengusul: {topic.lecturerName}
+                      {topic.status === 'Reserved' && topic.reservedByName
+                        ? ` — Diambil oleh ${topic.reservedByName}`
+                        : ''}
+                    </p>
                   </div>
-                  <h3 className="headline-sm text-[#0B1C30]">{topic.title}</h3>
-                  <p className="body-base text-[#475569]">{topic.description}</p>
-                  <p className="code-meta text-[#0F2A66]">
-                    Dosen Pengusul: {topic.lecturerName}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTopic(topic)}
-                    className="btn-secondary"
-                  >
-                    Lihat Detail
-                  </button>
-                  <button
-                    type="button"
-                    disabled={topic.status === 'Penuh'}
-                    onClick={() => claimTopicForProposal(topic)}
-                    className="btn-secondary"
-                  >
-                    Ajukan Topik
-                  </button>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTopic(topic)}
+                      className="btn-secondary"
+                    >
+                      Lihat Detail
+                    </button>
+                    <button
+                      type="button"
+                      disabled={unavailable}
+                      onClick={() => claimTopicForProposal(topic)}
+                      className="btn-secondary"
+                    >
+                      {topic.status === 'Reserved' ? 'Sudah Reserved' : 'Ajukan Topik'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -177,7 +188,7 @@ export const RekomendasiJudulPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={selectedTopic.status === 'Penuh'}
+                disabled={selectedTopic.status !== 'Tersedia'}
                 onClick={() => {
                   const chosen = selectedTopic;
                   setSelectedTopic(null);

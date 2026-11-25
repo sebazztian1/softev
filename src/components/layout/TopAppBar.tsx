@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, ChevronDown, LogOut, Menu, User, Users, X } from 'lucide-react';
 import { usePortal } from '../../context/PortalContext';
 import { UserRole } from '../../types/portal';
@@ -10,31 +10,24 @@ interface NavItem {
   label: string;
 }
 
-const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
-  mahasiswa: [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'upload-proposal', label: 'Upload Proposal' },
-    { id: 'upload-revisi', label: 'Upload Revisi' },
-    { id: 'hasil-sidang', label: 'Hasil Sidang Proposal' },
-    { id: 'download-proposal', label: 'Download Proposal' },
-    { id: 'cari-proposal', label: 'Cari Proposal & TA' },
-    { id: 'rekomendasi-judul', label: 'Rekomendasi Judul' },
-  ],
-  dosen: [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'mahasiswa-bimbingan', label: 'Mahasiswa Bimbingan' },
-    { id: 'sidang-penilaian', label: 'Sidang & Penilaian' },
-    { id: 'rekomendasi-judul', label: 'Rekomendasi Judul' },
-    { id: 'arsip-proposal', label: 'Arsip Proposal & TA' },
-  ],
-  kaprodi: [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'verifikasi-proposal', label: 'Verifikasi Proposal' },
-    { id: 'penjadwalan-sidang', label: 'Penjadwalan Sidang' },
-    { id: 'monitoring-ta', label: 'Monitoring TA' },
-    { id: 'pengaturan-periode', label: 'Pengaturan Periode' },
-  ],
-};
+const MAHASISWA_NAV: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'upload-proposal', label: 'Upload Proposal' },
+  { id: 'upload-revisi', label: 'Upload Revisi' },
+  { id: 'hasil-sidang', label: 'Hasil Sidang Proposal' },
+  { id: 'download-proposal', label: 'Download Proposal' },
+  { id: 'cari-proposal', label: 'Cari Proposal & TA' },
+  { id: 'rekomendasi-judul', label: 'Rekomendasi Judul' },
+];
+
+const KAPRODI_NAV: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'plotting-reviewer', label: 'Plotting Reviewer' },
+  { id: 'penjadwalan-sidang', label: 'Penjadwalan Sidang' },
+  { id: 'setting-maksimum', label: 'Setting Maksimum' },
+  { id: 'laporan', label: 'Laporan' },
+  { id: 'cari-dokumen', label: 'Cari Dokumen' },
+];
 
 const ROLE_LABEL: Record<UserRole, string> = {
   mahasiswa: 'Mahasiswa',
@@ -51,6 +44,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
     currentUser,
     activeTab,
     setActiveTab,
+    navigateWithContext,
     notifications,
     unreadCount,
     markNotificationRead,
@@ -79,9 +73,29 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
-  if (!currentUser) return null;
+  const navItems = useMemo<NavItem[]>(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'mahasiswa') return MAHASISWA_NAV;
+    if (currentUser.role === 'kaprodi') return KAPRODI_NAV;
 
-  const navItems = NAV_BY_ROLE[currentUser.role];
+    const roles = currentUser.structuralRoles ?? [];
+    const items: NavItem[] = [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'tulis-review', label: 'Tulis Review' },
+      { id: 'sidang-proposal', label: 'Sidang Proposal' },
+      { id: 'rekomendasi-judul', label: 'Rekomendasi Judul' },
+      { id: 'cari-dokumen', label: 'Cari Dokumen' },
+    ];
+    if (roles.includes('promotor-s3')) {
+      items.push({ id: 'promotor-s3', label: 'Promotor S3' });
+    }
+    if (roles.includes('koordinator-jadwal')) {
+      items.push({ id: 'sinkronisasi-jadwal', label: 'Kalender Jadwal' });
+    }
+    return items;
+  }, [currentUser]);
+
+  if (!currentUser) return null;
 
   const handleSelectNav = (tabId: string) => {
     setActiveTab(tabId);
@@ -162,7 +176,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-[#E2E8F0] bg-white shadow-level-3 overflow-hidden z-50">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
-                  <span className="body-semibold text-[#0B1C30]">Notifikasi</span>
+                  <span className="body-semibold text-[#0B1C30]">Notifikasi Interaktif</span>
                   {unreadCount > 0 && (
                     <button
                       type="button"
@@ -185,7 +199,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
                         type="button"
                         onClick={() => {
                           markNotificationRead(n.id);
-                          if (n.targetTab) setActiveTab(n.targetTab);
+                          if (n.targetTab) {
+                            navigateWithContext(n.targetTab, n.targetSubTab, n.targetThesisId);
+                          }
                           setNotifOpen(false);
                         }}
                         className={`w-full text-left px-4 py-3 hover:bg-[#F8FAFC] transition-colors cursor-pointer ${
@@ -199,9 +215,14 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
                           )}
                         </div>
                         <p className="body-base text-[#475569] mt-0.5">{n.message}</p>
-                        <p className="code-meta text-[#64748B] mt-1">
-                          {formatDateTimeId(n.createdAt)}
-                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="code-meta text-[#64748B]">
+                            {formatDateTimeId(n.createdAt)}
+                          </p>
+                          {n.targetTab && (
+                            <span className="label-sm text-[#0284C7]">Buka halaman terkait</span>
+                          )}
+                        </div>
                       </button>
                     ))
                   )}
@@ -225,7 +246,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
               </div>
               <div className="hidden sm:block text-left max-w-[150px]">
                 <p className="body-semibold text-[#0B1C30] truncate">{currentUser.name}</p>
-                <p className="code-meta text-[#475569] truncate">{currentUser.identifier}</p>
+                <p className="code-meta text-[#475569] truncate">@{currentUser.username}</p>
               </div>
               <ChevronDown className="w-4 h-4 text-[#475569] stroke-[1.5]" />
             </button>
@@ -234,8 +255,8 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
               <div className="absolute right-0 mt-2 w-64 rounded-xl border border-[#E2E8F0] bg-white shadow-level-3 overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <p className="body-semibold text-[#0B1C30] truncate">{currentUser.name}</p>
-                  <p className="code-meta text-[#475569]">
-                    {currentUser.identifier} — {ROLE_LABEL[currentUser.role]}
+                  <p className="code-meta text-[#475569] truncate">
+                    @{currentUser.username} — {currentUser.identifier}
                   </p>
                 </div>
 

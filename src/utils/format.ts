@@ -1,4 +1,6 @@
-import { LecturerProfile, ThesisRecord } from '../types/portal';
+import { LecturerProfile, PreviewFilePayload, ThesisRecord } from '../types/portal';
+import { getFileBlob } from './fileStorage';
+import { generateAcademicPdfBlob } from './pdfGenerator';
 
 const BULAN_ID = [
   'Januari',
@@ -69,14 +71,40 @@ export function getLecturerName(lecturers: LecturerProfile[], id: string): strin
   return lecturers.find((l) => l.id === id)?.name ?? 'Belum ditetapkan';
 }
 
+export async function downloadPdfPayload(payload: PreviewFilePayload): Promise<void> {
+  let blob: Blob | null = null;
+  if (payload.hasRealBlob) {
+    try {
+      blob = await getFileBlob(payload.id);
+    } catch {
+      blob = null;
+    }
+  }
+  if (!blob) {
+    blob = generateAcademicPdfBlob({
+      title: payload.title,
+      subtitle: payload.subtitle,
+      lines: payload.lines,
+    });
+  }
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = payload.fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function exportThesesToCsv(
   records: ThesisRecord[],
   lecturers: LecturerProfile[],
+  fileNamePrefix = 'monitoring-tugas-akhir-istts',
 ): void {
   const headers = [
     'NIM',
     'Nama Mahasiswa',
     'Program Studi',
+    'Periode',
     'Judul Tugas Akhir',
     'Bidang Minat',
     'Tahap',
@@ -95,13 +123,16 @@ export function exportThesesToCsv(
     item.studentNim,
     item.studentName,
     item.programStudi,
+    item.semester,
     item.title,
     item.field,
     item.stage,
     item.status,
     getLecturerName(lecturers, item.advisor1Id),
     getLecturerName(lecturers, item.advisor2Id),
-    item.defenseScore ? `${item.defenseScore.totalScore.toFixed(1)} (${item.defenseScore.grade})` : '-',
+    item.defenseScore
+      ? `${item.defenseScore.totalScore.toFixed(1)} (${item.defenseScore.grade})`
+      : '-',
   ]);
 
   const csvContent =
@@ -112,7 +143,7 @@ export function exportThesesToCsv(
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `monitoring-tugas-akhir-istts-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.download = `${fileNamePrefix}-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
