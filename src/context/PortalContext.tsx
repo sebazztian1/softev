@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   SEED_ACCOUNTS,
+  SEED_NEW_STUDENT,
+  SEED_QUOTA_STUDENT,
+  SEED_LATE_STUDENT,
+  SEED_LATE_REVISION_STUDENT,
+  SEED_LATE_REVISION_THESIS,
+  SEED_QUOTA_ALLOCATION,
   SEED_ARCHIVE,
   SEED_BAA_ROOM_SLOTS,
   SEED_DOCTORAL_STUDENTS,
@@ -37,12 +43,17 @@ import {
   UserAccount,
   UserRole,
 } from '../types/portal';
-import { saveFileBlob } from '../utils/fileStorage';
+import { deleteFileBlob, saveFileBlob } from '../utils/fileStorage';
+import { flushSync } from 'react-dom';
+import { getRevisionDetails, needsRevision, nextRevisionToken, type RevisionDetails } from '../utils/revision';
+import { formatDateTimeId, formatFileSize } from '../utils/format';
+import { getAdvisorQuotaError, getProposalDeadline, validateStudentPdf } from '../utils/studentSubmission';
 
 const STORAGE_KEY = 'istts_portal_ta_state_v3';
 
 interface PersistedState {
   accounts: Record<UserRole, UserAccount>;
+  studentAccounts: UserAccount[];
   currentRole: UserRole | null;
   activeTab: string;
   activeSubTab: string | null;
@@ -50,6 +61,7 @@ interface PersistedState {
   lecturers: LecturerProfile[];
   theses: ThesisRecord[];
   topics: TopicRecommendation[];
+  pendingTopic: { studentId: string; topicId: string; previousName?: string; previousNim?: string } | null;
   archive: ArchiveEntry[];
   templates: OfficialTemplate[];
   notifications: NotificationItem[];
@@ -60,16 +72,27 @@ interface PersistedState {
   lecturerSchedules: LecturerScheduleItem[];
 }
 
+function releaseDraftTopic(state: PersistedState): TopicRecommendation[] {
+  const draft = state.pendingTopic;
+  if (!draft) return state.topics;
+  return state.topics.map((topic) => topic.id === draft.topicId ? {
+    ...topic, status: 'Tersedia', takenCount: Math.max(0, topic.takenCount - 1),
+    reservedByName: draft.previousName, reservedByNim: draft.previousNim,
+  } : topic);
+}
+
 function buildInitialState(): PersistedState {
   return {
     accounts: SEED_ACCOUNTS,
+    studentAccounts: [SEED_ACCOUNTS.mahasiswa, SEED_NEW_STUDENT, SEED_QUOTA_STUDENT, SEED_LATE_STUDENT, SEED_LATE_REVISION_STUDENT],
     currentRole: null,
     activeTab: 'dashboard',
     activeSubTab: null,
     focusedThesisId: null,
     lecturers: SEED_LECTURERS,
-    theses: SEED_THESES,
+    theses: [...SEED_THESES, SEED_QUOTA_ALLOCATION, SEED_LATE_REVISION_THESIS],
     topics: SEED_TOPICS,
+    pendingTopic: null,
     archive: SEED_ARCHIVE,
     templates: SEED_TEMPLATES,
     notifications: SEED_NOTIFICATIONS,
@@ -106,14 +129,30 @@ function loadState(): PersistedState {
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
     const fallback = buildInitialState();
     return {
+<<<<<<< HEAD
       accounts: { ...fallback.accounts, ...parsed.accounts },
+=======
+      accounts: parsed.accounts ?? fallback.accounts,
+      studentAccounts: Array.from(new Map([
+        ...fallback.studentAccounts,
+        ...(parsed.studentAccounts ?? []),
+        parsed.accounts?.mahasiswa ?? fallback.accounts.mahasiswa,
+      ].map(account => [account.id, account])).values()),
+>>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
       currentRole: parsed.currentRole ?? null,
       activeTab: parsed.activeTab ?? 'dashboard',
       activeSubTab: parsed.activeSubTab ?? null,
       focusedThesisId: parsed.focusedThesisId ?? null,
       lecturers: parsed.lecturers ?? fallback.lecturers,
-      theses: parsed.theses ?? fallback.theses,
+      theses: parsed.theses
+        ? [...parsed.theses, ...(!parsed.studentAccounts?.some(account => account.id === SEED_QUOTA_STUDENT.id) &&
+            !parsed.theses.some(thesis => thesis.id === SEED_QUOTA_ALLOCATION.id) ? [SEED_QUOTA_ALLOCATION] : []),
+            ...(!parsed.studentAccounts?.some(account => account.id === SEED_LATE_REVISION_STUDENT.id) &&
+            !parsed.theses.some(thesis => thesis.studentId === SEED_LATE_REVISION_STUDENT.id)
+              ? [SEED_LATE_REVISION_THESIS] : [])]
+        : fallback.theses,
       topics: parsed.topics ?? fallback.topics,
+      pendingTopic: parsed.pendingTopic ?? null,
       archive: parsed.archive ?? fallback.archive,
       templates: parsed.templates ?? fallback.templates,
       notifications: parsed.notifications ?? fallback.notifications,
@@ -177,21 +216,21 @@ interface PortalContextValue {
   doctoralStudents: DoctoralStudentRecord[];
   lecturerSchedules: LecturerScheduleItem[];
   preselectedTopic: TopicRecommendation | null;
-  setPreselectedTopic: (topic: TopicRecommendation | null) => void;
+  clearPreselectedTopic: () => void;
   previewFile: PreviewFilePayload | null;
   openFilePreview: (payload: PreviewFilePayload) => void;
   closeFilePreview: () => void;
   toast: ToastMessage | null;
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: () => void;
-  login: (identifier: string) => boolean;
-  loginAsRole: (role: UserRole) => void;
+  login: (identifier: string, password: string) => boolean;
+  loginAsRole: (role: UserRole, studentId?: string) => void;
   switchRole: (role: UserRole) => void;
   logout: () => void;
   updateProfile: (updates: Pick<UserAccount, 'name' | 'email'>) => void;
   toggleDosenStructuralRole: (roleKey: DosenStructuralRole) => void;
   uploadProposal: (payload: ProposalUploadPayload, file: File) => Promise<UploadReceipt>;
-  uploadRevision: (thesisId: string, summary: string, file: File) => Promise<void>;
+  uploadRevision: (thesisId: string, summary: string, file: File, details?: RevisionDetails) => Promise<void>;
   submitDosenEvaluation: (
     thesisId: string,
     decision: AcademicStatus,
@@ -261,7 +300,9 @@ function computeGrade(score: number): string {
 
 export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<PersistedState>(() => loadState());
-  const [preselectedTopic, setPreselectedTopic] = useState<TopicRecommendation | null>(null);
+  const proposalUploadPending = useRef(false);
+  const latestState = useRef(state);
+  useLayoutEffect(() => { latestState.current = state; }, [state]);
   const [previewFile, setPreviewFile] = useState<PreviewFilePayload | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
@@ -287,17 +328,26 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const currentUser = state.currentRole ? state.accounts[state.currentRole] : null;
 
+  const preselectedTopic = currentUser?.role === 'mahasiswa' && currentUser.id === state.pendingTopic?.studentId
+    ? state.topics.find((topic) => topic.id === state.pendingTopic?.topicId) ?? null
+    : null;
+
   const studentThesis = useMemo(() => {
     const mhs = state.accounts.mahasiswa;
-    return state.theses.find((item) => item.studentId === mhs.id);
+    return state.theses.find((item) => item.studentId === mhs.id && !item.isArchived);
   }, [state.theses, state.accounts.mahasiswa]);
 
   const roleNotifications = useMemo(() => {
     if (!currentUser) return [];
     return state.notifications
       .filter((n) => n.targetRole === currentUser.role || n.targetRole === 'all')
+      .filter((n) => {
+        if (currentUser.role !== 'mahasiswa' || n.targetRole === 'all') return true;
+        if (!n.targetThesisId) return currentUser.id === SEED_ACCOUNTS.mahasiswa.id;
+        return state.theses.some(thesis => thesis.id === n.targetThesisId && thesis.studentId === currentUser.id);
+      })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [state.notifications, currentUser]);
+  }, [state.notifications, state.theses, currentUser]);
 
   const unreadCount = useMemo(
     () => roleNotifications.filter((n) => !n.read).length,
@@ -353,20 +403,24 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
-  const login = (identifierInput: string): boolean => {
+  const login = (identifierInput: string, password: string): boolean => {
     const clean = identifierInput.trim().toLowerCase();
-    const matched = (Object.values(state.accounts) as UserAccount[]).find(
+    const matched = [...Object.values(state.accounts), ...state.studentAccounts].find(
       (acc) =>
         acc.username.toLowerCase() === clean ||
         acc.identifier.toLowerCase() === clean ||
         acc.email.toLowerCase() === clean ||
         acc.role === clean,
     );
-    if (!matched) {
+    if (!matched || (matched.role === 'mahasiswa' && password !== 'istts2026')) {
       return false;
     }
     setState((prev) => ({
       ...prev,
+      accounts: matched.role === 'mahasiswa' ? { ...prev.accounts, mahasiswa: matched } : prev.accounts,
+      studentAccounts: prev.studentAccounts.map(account => account.id === prev.accounts.mahasiswa.id ? prev.accounts.mahasiswa : account),
+      topics: matched.role === 'mahasiswa' && matched.id !== prev.accounts.mahasiswa.id ? releaseDraftTopic(prev) : prev.topics,
+      pendingTopic: matched.role === 'mahasiswa' && matched.id !== prev.accounts.mahasiswa.id ? null : prev.pendingTopic,
       currentRole: matched.role,
       activeTab: 'dashboard',
       activeSubTab: null,
@@ -376,10 +430,16 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return true;
   };
 
-  const loginAsRole = (role: UserRole) => {
-    const acc = state.accounts[role];
+  const loginAsRole = (role: UserRole, studentId = SEED_ACCOUNTS.mahasiswa.id) => {
+    const acc = role === 'mahasiswa'
+      ? state.studentAccounts.find(student => student.id === studentId) ?? state.accounts.mahasiswa
+      : state.accounts[role];
     setState((prev) => ({
       ...prev,
+      accounts: role === 'mahasiswa' ? { ...prev.accounts, mahasiswa: acc } : prev.accounts,
+      studentAccounts: prev.studentAccounts.map(account => account.id === prev.accounts.mahasiswa.id ? prev.accounts.mahasiswa : account),
+      topics: role === 'mahasiswa' && acc.id !== prev.accounts.mahasiswa.id ? releaseDraftTopic(prev) : prev.topics,
+      pendingTopic: role === 'mahasiswa' && acc.id !== prev.accounts.mahasiswa.id ? null : prev.pendingTopic,
       currentRole: role,
       activeTab: 'dashboard',
       activeSubTab: null,
@@ -422,6 +482,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setState((prev) => ({
       ...prev,
+      studentAccounts: role === 'mahasiswa' ? prev.studentAccounts.map(account =>
+        account.id === prev.accounts.mahasiswa.id ? { ...account, email: updates.email.trim() } : account) : prev.studentAccounts,
       accounts: {
         ...prev.accounts,
         [role]: {
@@ -466,201 +528,187 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Konfigurasi peran struktural dosen diperbarui');
   };
 
-  const uploadProposal = async (
-    payload: ProposalUploadPayload,
-    file: File,
-  ): Promise<UploadReceipt> => {
-    const mhs = state.accounts.mahasiswa;
-    const fileId = `sub-${Date.now()}`;
-    await saveFileBlob(fileId, file);
+  const uploadProposal = async (payload: ProposalUploadPayload, file: File): Promise<UploadReceipt> => {
+    const student = state.accounts.mahasiswa;
+    const topicId = preselectedTopic?.id;
+    const isExtension = payload.submissionType === 'Perpanjangan';
 
-    const existing = state.theses.find((t) => t.studentId === mhs.id);
-    const versionNum = existing
-      ? existing.submissions.filter((s) => s.kind === 'proposal').length + 1
-      : 1;
-    const targetThesisId = existing ? existing.id : `ta-${Date.now()}`;
-    const uploadedAt = new Date().toISOString();
-
-    const newSubmission: SubmissionFile = {
-      id: fileId,
-      kind: 'proposal',
-      versionLabel: `Proposal v${versionNum}.0`,
-      fileName: file.name,
-      fileSize: file.size,
-      uploadedAt,
-      uploadedBy: mhs.name,
-      summary: payload.summary || 'Pengajuan proposal Tugas Akhir baru.',
-      hasRealBlob: true,
-      pdfTitle: `PROPOSAL TUGAS AKHIR - ${mhs.name.toUpperCase()}`,
-      pdfLines: [
-        `NIM/NRP: ${mhs.identifier}`,
-        `Jenis Pengajuan: ${payload.submissionType}`,
-        `Judul: ${payload.title}`,
-        `Tag Topik: ${payload.tags.join(', ')}`,
-      ],
-    };
-
-    const advisor1Name =
-      state.lecturers.find((l) => l.id === payload.proposedAdvisor1Id)?.name ?? '-';
-    const advisor2Name =
-      state.lecturers.find((l) => l.id === payload.proposedAdvisor2Id)?.name ?? '-';
-
-    setState((prev) => {
-      let updatedTheses: ThesisRecord[];
-      if (existing) {
-        updatedTheses = prev.theses.map((item) =>
-          item.id === existing.id
-            ? {
-                ...item,
-                submissionType: payload.submissionType,
-                title: payload.title,
-                field: payload.field,
-                tags: payload.tags,
-                abstract: payload.abstract,
-                advisor1Id: payload.proposedAdvisor1Id,
-                advisor2Id: payload.proposedAdvisor2Id,
-                proposedAdvisor1Id: payload.proposedAdvisor1Id,
-                proposedAdvisor2Id: payload.proposedAdvisor2Id,
-                stage: 'Verifikasi Kaprodi',
-                status: 'Menunggu Verifikasi',
-                updatedAt: uploadedAt,
-                submissions: [newSubmission, ...item.submissions],
-              }
-            : item,
-        );
-      } else {
-        const created: ThesisRecord = {
-          id: targetThesisId,
-          studentId: mhs.id,
-          studentName: mhs.name,
-          studentNim: mhs.identifier,
-          ipk: mhs.ipk ?? 3.5,
-          programStudi: mhs.department,
-          semester: prev.period.semesterLabel,
-          submissionType: payload.submissionType,
-          title: payload.title,
-          field: payload.field,
-          tags: payload.tags,
-          sksWeight: 6,
-          abstract: payload.abstract,
-          stage: 'Verifikasi Kaprodi',
-          status: 'Menunggu Verifikasi',
-          advisor1Id: payload.proposedAdvisor1Id,
-          advisor2Id: payload.proposedAdvisor2Id,
-          proposedAdvisor1Id: payload.proposedAdvisor1Id,
-          proposedAdvisor2Id: payload.proposedAdvisor2Id,
-          proposalReviewers: [],
-          taExaminers: [],
-          skIssued: false,
-          submissions: [newSubmission],
-          evaluations: [],
-          updatedAt: uploadedAt,
-        };
-        updatedTheses = [created, ...prev.theses];
+    const validate = (current: PersistedState) => {
+      if (current.currentRole !== 'mahasiswa' || current.accounts.mahasiswa.id !== student.id) {
+        throw new Error('Sesi mahasiswa telah berubah. Buka kembali formulir pengajuan.');
       }
-
-      let notifs = pushNotification(
-        prev.notifications,
-        'kaprodi',
-        'Proposal Baru Siap Plotting Reviewer',
-        `${mhs.name} (${mhs.identifier}) mengunggah proposal dengan tag ${payload.tags.join(', ')}.`,
-        'plotting-reviewer',
-        'proposal',
-        targetThesisId,
-      );
-      notifs = pushNotification(
-        notifs,
-        'dosen',
-        'Tugas Review Proposal Baru',
-        `${mhs.name} mengajukan proposal (${payload.submissionType}) pada bidang ${payload.field}.`,
-        'tulis-review',
-        'review-list',
-        targetThesisId,
-      );
-
-      return {
-        ...prev,
-        theses: updatedTheses,
-        notifications: notifs,
-      };
-    });
-
-    setPreselectedTopic(null);
-    showToast('Berkas proposal berhasil diunggah dan pemberitahuan telah dikirim');
-
-    return {
-      title: payload.title,
-      advisor1Name,
-      advisor2Name,
-      semester: state.period.semesterLabel,
-      uploadedAt,
-      fileName: file.name,
-      fileSize: file.size,
+      if (Date.parse(getProposalDeadline(current.accounts.mahasiswa, current.period)) <= Date.now()) {
+        throw new Error('Batas waktu pengajuan proposal telah berakhir.');
+      }
+      if (!payload.title.trim() || !payload.field.trim() || !payload.abstract.trim() || !payload.tags.length) {
+        throw new Error('Lengkapi judul, bidang minat, abstrak dan minimal satu tag.');
+      }
+      const advisorError = getAdvisorQuotaError(payload.proposedAdvisor1Id, payload.proposedAdvisor2Id,
+        current.lecturers, current.theses, student, current.period, current.maxQuotas);
+      if (advisorError) throw new Error(advisorError);
+      const active = current.theses.find((item) => item.studentId === student.id && !item.isArchived);
+      if (isExtension && active?.submissionType === 'Perpanjangan' &&
+          (active.title !== payload.title || active.advisor1Id !== payload.proposedAdvisor1Id ||
+           active.advisor2Id !== payload.proposedAdvisor2Id)) {
+        throw new Error('Judul dan pembimbing perpanjangan sudah dikunci.');
+      }
+      if (topicId !== (current.pendingTopic?.studentId === student.id ? current.pendingTopic.topicId : undefined)) {
+        throw new Error('Pilihan topik berubah. Periksa kembali data proposal.');
+      }
+      if (topicId) {
+        const topic = current.topics.find((item) => item.id === topicId);
+        if (!topic || isExtension || topic.status !== 'Reserved' || topic.reservedByNim !== student.identifier ||
+            topic.title !== payload.title || topic.field !== payload.field || topic.lecturerId !== payload.proposedAdvisor1Id) {
+          throw new Error('Reservasi topik berubah. Bersihkan pilihan lalu pilih kembali topik yang tersedia.');
+        }
+      }
+      return active;
     };
+
+    if (proposalUploadPending.current) throw new Error('Pengajuan proposal sedang disimpan.');
+    validate(state);
+    proposalUploadPending.current = true;
+    const fileId = `sub-${crypto.randomUUID()}`;
+    let blobStored = false;
+    try {
+      const fileError = await validateStudentPdf(file);
+      if (fileError) throw new Error(fileError);
+      await saveFileBlob(fileId, file);
+      blobStored = true;
+      const current = latestState.current;
+      const active = validate(current);
+      const extension = isExtension ? active : undefined;
+      const thesisId = extension?.id ?? `ta-${crypto.randomUUID()}`;
+      const uploadedAt = new Date().toISOString();
+      const version = (extension?.submissions.filter((item) => item.kind === 'proposal').length ?? 0) + 1;
+      const submission: SubmissionFile = {
+        id: fileId, kind: 'proposal', versionLabel: `Proposal v${version}.0`, fileName: file.name,
+        fileSize: file.size, uploadedAt, uploadedBy: student.name, summary: payload.summary,
+        hasRealBlob: true,
+      };
+      const receipt: UploadReceipt = {
+        title: payload.title,
+        advisor1Name: current.lecturers.find((item) => item.id === payload.proposedAdvisor1Id)!.name,
+        advisor2Name: current.lecturers.find((item) => item.id === payload.proposedAdvisor2Id)?.name ?? '',
+        semester: current.period.semesterLabel, uploadedAt, fileName: file.name, fileSize: file.size,
+      };
+      const updated: ThesisRecord = {
+        studentId: student.id, studentName: student.name, studentNim: student.identifier,
+        programStudi: student.department, ipk: student.ipk ?? 3.5, sksWeight: 6,
+        proposalReviewers: [], taExaminers: [], evaluations: [], skIssued: false,
+        ...extension,
+        id: thesisId, semester: receipt.semester, submissionType: payload.submissionType,
+        title: payload.title, field: payload.field, tags: payload.tags, abstract: payload.abstract,
+        newTitle: extension?.title === payload.title ? extension.newTitle : undefined,
+        stage: 'Verifikasi Kaprodi', status: 'Menunggu Verifikasi', updatedAt: uploadedAt,
+        advisor1Id: payload.proposedAdvisor1Id, advisor2Id: payload.proposedAdvisor2Id,
+        proposedAdvisor1Id: payload.proposedAdvisor1Id, proposedAdvisor2Id: payload.proposedAdvisor2Id,
+        submissions: [submission, ...(extension?.submissions ?? [])],
+      };
+      setState((prev) => {
+        let notifications = pushNotification(prev.notifications, 'kaprodi', 'Proposal Baru Siap Plotting Reviewer',
+          `${student.name} (${student.identifier}) mengunggah proposal dengan tag ${payload.tags.join(', ')}.`,
+          'plotting-reviewer', 'proposal', thesisId);
+        notifications = pushNotification(notifications, 'dosen', 'Tugas Review Proposal Baru',
+          `${student.name} mengajukan proposal (${payload.submissionType}) pada bidang ${payload.field}.`,
+          'tulis-review', 'review-list', thesisId);
+        notifications = pushNotification(notifications, 'mahasiswa', 'Bukti pengajuan proposal',
+          `${receipt.title}. Pembimbing: ${[receipt.advisor1Name, receipt.advisor2Name].filter(Boolean).join(' dan ')}. ` +
+          `${receipt.semester}, ${formatDateTimeId(uploadedAt)}. ${file.name} (${formatFileSize(file.size)}).`,
+          'download-proposal', undefined, thesisId);
+
+        const otherTheses = prev.theses.filter((item) => item.id !== thesisId);
+        return {
+          ...prev,
+          theses: [updated, ...otherTheses.map((item) =>
+            item.studentId === student.id && !item.isArchived ? { ...item, isArchived: true } : item)],
+          topics: topicId ? prev.topics.map((item) => item.id === topicId && item.takenCount < item.quota
+            ? { ...item, status: 'Tersedia' as const } : item) : prev.topics,
+          pendingTopic: null,
+          notifications,
+        };
+      });
+      showToast('Proposal berhasil diunggah.');
+      return receipt;
+    } catch (error) {
+      if (blobStored) await deleteFileBlob(fileId);
+      throw error;
+    } finally {
+      proposalUploadPending.current = false;
+    }
   };
 
-  const uploadRevision = async (thesisId: string, summary: string, file: File) => {
-    const mhs = state.accounts.mahasiswa;
-    const fileId = `rev-${Date.now()}`;
+  const uploadRevision = async (
+    thesisId: string, summary: string, file: File, details?: RevisionDetails,
+  ) => {
+    const validate = (current: PersistedState) => {
+      const student = current.accounts.mahasiswa;
+      const thesis = current.theses.find((item) => item.id === thesisId && !item.isArchived);
+      if (!thesis || thesis.studentId !== student.id || current.currentRole !== 'mahasiswa') {
+        throw new Error('Proposal aktif mahasiswa tidak ditemukan.');
+      }
+      if (!needsRevision(thesis.status)) throw new Error('Proposal ini tidak sedang meminta revisi.');
+      if (Date.parse(thesis.revisionDeadline ?? current.period.revisionDeadline) <= Date.now()) {
+        throw new Error('Batas waktu unggah revisi telah berakhir.');
+      }
+      if (!summary.trim()) throw new Error('Isi ringkasan perubahan revisi terlebih dahulu.');
+      const saved = getRevisionDetails(thesis);
+      const edited = details ?? saved;
+      if (!edited.title.trim()) throw new Error('Isi judul tugas akhir terlebih dahulu.');
+      if (saved.submissionType === 'Perpanjangan') {
+        if (edited.submissionType !== saved.submissionType || edited.title.trim() !== saved.title ||
+            edited.advisor1Id !== saved.advisor1Id || edited.advisor2Id !== saved.advisor2Id) {
+          throw new Error('Jenis pengajuan, judul dan pembimbing perpanjangan sudah dikunci.');
+        }
+      } else {
+        const error = getAdvisorQuotaError(edited.advisor1Id, edited.advisor2Id, current.lecturers,
+          current.theses, student, current.period, current.maxQuotas);
+        if (error) throw new Error(error);
+      }
+      return { thesis, edited, student };
+    };
+
+    validate(latestState.current);
+    const fileError = await validateStudentPdf(file);
+    if (fileError) throw new Error(fileError);
+    const fileId = `rev-${crypto.randomUUID()}`;
     await saveFileBlob(fileId, file);
-
-    setState((prev) => {
-      const target = prev.theses.find((t) => t.id === thesisId);
-      if (!target) return prev;
-      const revCount = target.submissions.filter((s) => s.kind === 'revisi').length + 1;
-      const qrToken = `ISTTS-REV-${target.studentNim}-V${revCount}`;
-      const newSub: SubmissionFile = {
-        id: fileId,
-        kind: 'revisi',
-        versionLabel: `Revisi v${revCount}.0`,
-        fileName: file.name,
-        fileSize: file.size,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: mhs.name,
-        summary,
-        hasRealBlob: true,
-        revisionQrToken: qrToken,
+    try {
+      const current = latestState.current;
+      const { thesis, edited, student } = validate(current);
+      const qrToken = nextRevisionToken(current.theses, thesis);
+      const version = thesis.submissions.filter((submission) => submission.kind === 'revisi').length + 1;
+      const uploadedAt = new Date().toISOString();
+      const revision: SubmissionFile = {
+        id: fileId, kind: 'revisi', versionLabel: `Revisi v${version}.0`,
+        fileName: file.name, fileSize: file.size, uploadedAt, uploadedBy: student.name,
+        summary: summary.trim(), hasRealBlob: true, revisionQrToken: qrToken,
       };
 
-      const updatedTheses = prev.theses.map((item) =>
-        item.id === thesisId
-          ? {
-              ...item,
-              stage: 'Revisi Proposal' as const,
-              status: 'Menunggu Verifikasi' as const,
-              revisionQrToken: qrToken,
-              updatedAt: new Date().toISOString(),
-              submissions: [newSub, ...item.submissions],
-            }
-          : item,
-      );
-
-      let notifs = pushNotification(
-        prev.notifications,
-        'dosen',
-        `Permintaan Persetujuan Revisi (QR): ${mhs.name}`,
-        `${mhs.name} (${mhs.identifier}) mengunggah ${newSub.versionLabel} dengan token QR ${qrToken}.`,
-        'tulis-review',
-        'qr-approval',
-        thesisId,
-      );
-      notifs = pushNotification(
-        notifs,
-        'kaprodi',
-        `Revisi Siap Verifikasi QR: ${mhs.name}`,
-        `${mhs.name} mengunggah berkas revisi dengan token QR ${qrToken}.`,
-        'plotting-reviewer',
-        'qr-approval',
-        thesisId,
-      );
-
-      return {
-        ...prev,
-        theses: updatedTheses,
-        notifications: notifs,
-      };
-    });
-
+      flushSync(() => setState((prev) => {
+        const title = edited.title.trim();
+        const theses = prev.theses.map((item): ThesisRecord => item.id === thesisId ? {
+          ...item, submissionType: edited.submissionType,
+          newTitle: title === item.title ? undefined : title,
+          advisor1Id: edited.advisor1Id, advisor2Id: edited.advisor2Id,
+          proposedAdvisor1Id: edited.advisor1Id, proposedAdvisor2Id: edited.advisor2Id,
+          stage: 'Revisi Proposal', status: 'Menunggu Verifikasi', revisionQrToken: qrToken,
+          updatedAt: uploadedAt, submissions: [revision, ...item.submissions],
+        } : item);
+        let notifications = pushNotification(prev.notifications, 'dosen',
+          `Permintaan Persetujuan Revisi (QR): ${student.name}`,
+          `${student.name} (${student.identifier}) mengunggah ${revision.versionLabel} dengan token QR ${qrToken}.`,
+          'tulis-review', 'qr-approval', thesisId);
+        notifications = pushNotification(notifications, 'kaprodi',
+          `Revisi Siap Verifikasi QR: ${student.name}`,
+          `${student.name} mengunggah berkas revisi dengan token QR ${qrToken}.`,
+          'plotting-reviewer', 'qr-approval', thesisId);
+        return { ...prev, theses, notifications };
+      }));
+    } catch (error) {
+      await deleteFileBlob(fileId);
+      throw error;
+    }
     showToast('Berkas revisi berhasil diunggah dan token QR telah diterbitkan');
   };
 
@@ -1119,11 +1167,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ) => {
     setState((prev) => ({
       ...prev,
-      topics: prev.topics.map((t) =>
+      pendingTopic: prev.pendingTopic?.topicId === topicId ? null : prev.pendingTopic,
+      topics: (prev.pendingTopic?.topicId === topicId ? releaseDraftTopic(prev) : prev.topics).map((t) =>
         t.id === topicId
           ? {
               ...t,
               status,
+              reservedByNim: status === 'Reserved' && !reservedByName ? t.reservedByNim : undefined,
               reservedByName:
                 status === 'Reserved'
                   ? reservedByName?.trim() || t.reservedByName || 'Mahasiswa Terdaftar'
@@ -1139,36 +1189,50 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setState((prev) => ({
       ...prev,
       topics: prev.topics.filter((t) => t.id !== topicId),
+      pendingTopic: prev.pendingTopic?.topicId === topicId ? null : prev.pendingTopic,
     }));
     showToast('Topik rekomendasi telah dihapus');
   };
 
   const claimTopicForProposal = (topic: TopicRecommendation) => {
-    const mhs = state.accounts.mahasiswa;
+    const student = state.accounts.mahasiswa;
+    if (state.currentRole !== 'mahasiswa') return;
+    if (Date.parse(getProposalDeadline(state.accounts.mahasiswa, state.period)) <= Date.now()) {
+      showToast('Batas waktu pengajuan proposal telah berakhir.', 'error');
+      return;
+    }
+    if (preselectedTopic?.id === topic.id) {
+      setActiveTab('upload-proposal');
+      return;
+    }
+    const selected = state.topics.find((item) => item.id === topic.id);
+    if (!selected || selected.status !== 'Tersedia' || selected.takenCount >= selected.quota ||
+        selected.reservedByNim === student.identifier) {
+      showToast('Topik sudah tidak tersedia.', 'error');
+      return;
+    }
+    const advisorError = getAdvisorQuotaError(selected.lecturerId, '', state.lecturers, state.theses,
+      student, state.period, state.maxQuotas);
+    if (advisorError) {
+      showToast(advisorError, 'error');
+      return;
+    }
     setState((prev) => ({
       ...prev,
-      activeTab: 'upload-proposal',
-      topics: prev.topics.map((t) => {
-        if (t.id !== topic.id) return t;
-        const nextTaken = Math.min(t.quota, t.takenCount + 1);
-        return {
-          ...t,
-          takenCount: nextTaken,
-          status: 'Reserved',
-          reservedByName: mhs.name,
-          reservedByNim: mhs.identifier,
-        };
-      }),
-      notifications: pushNotification(
-        prev.notifications,
-        'dosen',
-        'Topik Proposal Diambil (Reserved)',
-        `${mhs.name} (${mhs.identifier}) mengambil topik "${topic.title}".`,
-        'rekomendasi-judul',
-      ),
+      activeTab: 'upload-proposal', activeSubTab: null, focusedThesisId: null,
+      topics: releaseDraftTopic(prev).map((item) => item.id === topic.id ? {
+        ...item, takenCount: item.takenCount + 1, status: 'Reserved',
+        reservedByName: student.name, reservedByNim: student.identifier,
+      } : item),
+      pendingTopic: { topicId: selected.id, studentId: student.id,
+        previousName: selected.reservedByName, previousNim: selected.reservedByNim },
     }));
-    setPreselectedTopic(topic);
-    showToast('Topik berstatus Reserved dan diisikan ke formulir Upload Proposal');
+  };
+
+  const clearPreselectedTopic = () => {
+    setState((prev) => prev.currentRole === 'mahasiswa' && prev.pendingTopic?.studentId === prev.accounts.mahasiswa.id
+      ? { ...prev, topics: releaseDraftTopic(prev), pendingTopic: null }
+      : prev);
   };
 
   const reviewDoctoralLog = (
@@ -1294,7 +1358,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setState((prev) => ({
       ...prev,
       notifications: prev.notifications.map((n) =>
-        n.targetRole === currentUser.role || n.targetRole === 'all' ? { ...n, read: true } : n,
+        roleNotifications.some(visible => visible.id === n.id) ? { ...n, read: true } : n,
       ),
     }));
   };
@@ -1326,20 +1390,22 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     navigateWithContext,
     clearFocus,
     lecturers: state.lecturers,
-    theses: state.theses,
+    theses: currentUser?.role === 'mahasiswa' ? state.theses : state.theses.filter(item => !item.isArchived),
     studentThesis,
     topics: state.topics,
     archive: state.archive,
     templates: state.templates,
     notifications: roleNotifications,
     unreadCount,
-    period: state.period,
+    period: currentUser?.role === 'mahasiswa'
+      ? { ...state.period, proposalDeadline: getProposalDeadline(currentUser, state.period) }
+      : state.period,
     maxQuotas: state.maxQuotas,
     baaRoomSlots: state.baaRoomSlots,
     doctoralStudents: state.doctoralStudents,
     lecturerSchedules: state.lecturerSchedules,
     preselectedTopic,
-    setPreselectedTopic,
+    clearPreselectedTopic,
     previewFile,
     openFilePreview: (payload) => setPreviewFile(payload),
     closeFilePreview: () => setPreviewFile(null),

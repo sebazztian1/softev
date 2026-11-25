@@ -10,6 +10,7 @@ const SIMULATION_ROLES: Array<{
   name: string;
   identifier: string;
   username: string;
+  studentId?: string;
 }> = [
   {
     role: 'mahasiswa',
@@ -17,6 +18,38 @@ const SIMULATION_ROLES: Array<{
     name: 'Kevin Hartanto',
     identifier: 'NRP 221116942 — S1 Informatika',
     username: 'kevin.hartanto',
+  },
+  {
+    role: 'mahasiswa',
+    title: 'Mahasiswa — Belum Upload Proposal',
+    name: 'Budi Santoso',
+    identifier: 'NRP 221116950 — S1 Informatika',
+    username: 'budi.santoso',
+    studentId: 'usr-mhs-new-01',
+  },
+  {
+    role: 'mahasiswa',
+    title: 'Mahasiswa — Kuota Pembimbing Penuh',
+    name: 'Raka Pratama',
+    identifier: 'NRP 221116951 — S1 Informatika',
+    username: 'raka.pratama',
+    studentId: 'usr-mhs-quota-01',
+  },
+  {
+    role: 'mahasiswa',
+    title: 'Mahasiswa — Terlambat Upload Proposal',
+    name: 'Dina Putri',
+    identifier: 'NRP 221116952 — S1 Informatika',
+    username: 'dina.putri',
+    studentId: 'usr-mhs-late-01',
+  },
+  {
+    role: 'mahasiswa',
+    title: 'Mahasiswa — Terlambat Upload Revisi',
+    name: 'Fira Anindya',
+    identifier: 'NRP 221116953 — S1 Informatika',
+    username: 'fira.anindya',
+    studentId: 'usr-mhs-late-revision-01',
   },
   {
     role: 'dosen',
@@ -64,7 +97,8 @@ export const LoginPage: React.FC = () => {
       return;
     }
     const username = identifier.trim().toLowerCase();
-    if (username === 'andi.wijaya' || username === 'budi.santoso') {
+    // The merged demos share Budi's username and use distinct student/admin passwords.
+    if (username === 'andi.wijaya' || (username === 'budi.santoso' && password !== 'istts2026')) {
       if (Date.now() < lockedUntil) {
         const remainingMinutes = Math.ceil((lockedUntil - Date.now()) / 60000);
         setError(`E-AUTH-002 — Akun terkunci setelah 5 kali percobaan masuk yang gagal. Coba lagi dalam ${remainingMinutes} menit atau hubungi Departemen IT.`);
@@ -96,9 +130,9 @@ export const LoginPage: React.FC = () => {
     }
     localStorage.removeItem('tuntas-proto-v2:persona');
     localStorage.removeItem('tuntas-proto-v2:role');
-    const ok = login(identifier);
+    const ok = login(identifier, password);
     if (!ok) {
-      setError('Akun tidak ditemukan. Gunakan username atau akun simulasi yang tersedia di bawah.');
+      setError('Identitas atau kata sandi tidak sesuai.');
     }
   };
 
@@ -186,9 +220,19 @@ export const LoginPage: React.FC = () => {
             <div className="rounded-xl border border-[#E2E8F0] divide-y divide-[#E2E8F0] overflow-hidden">
               {SIMULATION_ROLES.map((item) => (
                 <button
+<<<<<<< HEAD
                   key={item.username}
                   type="button"
                   onClick={() => handleSimulationLogin(item)}
+=======
+                  key={item.studentId ?? item.role}
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('tuntas-proto-v2:persona');
+                    localStorage.removeItem('tuntas-proto-v2:role');
+                    loginAsRole(item.role, item.studentId);
+                  }}
+>>>>>>> 1a644e2a0806cd31f10b4d99040b69be45389ab7
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-[#F8FAFC] text-left transition-colors cursor-pointer"
                 >
                   <div className="min-w-0">

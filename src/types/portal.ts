@@ -38,6 +38,7 @@ export interface UserAccount {
   phone: string;
   initials: string;
   ipk?: number;
+  proposalDeadline?: string;
   structuralRoles?: DosenStructuralRole[];
 }
 
@@ -105,6 +106,7 @@ export interface DefenseSchedule {
 
 export interface ThesisRecord {
   id: string;
+  isArchived?: boolean;
   studentId: string;
   studentName: string;
   studentNim: string;
@@ -154,6 +156,7 @@ export interface TopicRecommendation {
 
 export interface ArchiveEntry {
   id: string;
+  programStudi?: string;
   title: string;
   studentName: string;
   studentNim: string;
@@ -220,6 +223,7 @@ export interface BaaRoomSlot {
 
 export interface PreviewFilePayload {
   id: string;
+  assetUrl?: string;
   fileName: string;
   title: string;
   subtitle: string;

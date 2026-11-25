@@ -1,0 +1,64 @@
+import { test, expect, masuk, buka, state, aktif, fixture, file } from './portal.mjs';
+
+test('57. Akun terlambat tersedia pada data lama, menutup formulir dan menahan reservasi', async ({ page }) => {
+  await masuk(page);
+  await fixture(page, saved => {
+    saved.studentAccounts = saved.studentAccounts.filter(account => account.id !== 'usr-mhs-late-01');
+  });
+  const originalPeriod = (await state(page)).period;
+  await page.getByRole('button', { name: /Menu profil Kevin/ }).click();
+  await page.getByRole('button', { name: 'Keluar', exact: true }).click();
+  await page.locator('#login-id').fill('221116952');
+  await page.locator('#login-pw').fill('istts2026');
+  await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+  await expect(page.locator('main')).toContainText('Dina Putri');
+  await expect(page.getByRole('button', { name: 'Unggah Proposal', exact: true })).toBeDisabled();
+  await buka(page, 'Upload Proposal');
+  await expect(page.getByText('Batas waktu telah berakhir')).toBeVisible();
+  await expect(page.locator('main form')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText('Batas waktu telah berakhir')).toBeVisible();
+  await buka(page, 'Rekomendasi Judul');
+  const claim = page.getByRole('button', { name: 'Ajukan Topik', exact: true }).first();
+  await expect(claim).toBeDisabled();
+  const deadline = Date.parse((await state(page)).accounts.mahasiswa.proposalDeadline);
+  await page.clock.setFixedTime(new Date(deadline - 60_000));
+  await page.reload();
+  await expect(claim).toBeEnabled();
+  const before = await state(page);
+  await page.clock.setFixedTime(new Date(deadline + 1000));
+  await claim.click();
+  await expect(page.getByRole('status')).toContainText('Batas waktu pengajuan proposal telah berakhir');
+  expect((await state(page)).topics).toEqual(before.topics);
+  expect(aktif(await state(page))).toBeUndefined();
+  expect((await state(page)).period).toEqual(originalPeriod);
+  await page.getByRole('button', { name: /Menu profil Dina/ }).click();
+  await page.getByRole('button', { name: 'Keluar', exact: true }).click();
+  await page.getByRole('button', { name: /^Mahasiswa — Belum Upload Proposal Budi/ }).click();
+  await buka(page, 'Upload Proposal');
+  await expect(page.locator('#prop-title')).toBeVisible();
+});
+
+test('58. Pengajuan Dina dari formulir yang terbuka sebelum tenggat tetap ditolak setelah terlambat', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Mahasiswa — Terlambat Upload Proposal Dina/ }).click();
+  const initial = await state(page);
+  const deadline = Date.parse(initial.accounts.mahasiswa.proposalDeadline);
+  await page.clock.setFixedTime(new Date(deadline - 60_000));
+  await buka(page, 'Upload Proposal');
+  await page.locator('#prop-title').fill('Pengujian tenggat Dina');
+  await page.locator('#prop-field').selectOption('Rekayasa Perangkat Lunak');
+  await page.locator('#prop-abstract').fill('Uji pengiriman berkas setelah tenggat personal mahasiswa.');
+  await page.locator('#prop-adv1').selectOption('lec-02');
+  await page.getByRole('button', { name: 'IoT', exact: true }).click();
+  await page.getByRole('button', { name: 'Lanjut ke unggah berkas' }).click();
+  await file(page);
+  await page.getByRole('main').getByRole('checkbox').check();
+  await page.clock.setFixedTime(new Date(deadline + 1000));
+  await page.getByRole('button', { name: 'Kirim proposal', exact: true }).click();
+  await expect(page.getByText(/Batas waktu.*berakhir/).first()).toBeVisible();
+  const saved = await state(page);
+  expect(saved.theses).toEqual(initial.theses);
+  expect(saved.notifications).toEqual(initial.notifications);
+  expect(aktif(saved)).toBeUndefined();
+});

@@ -1,47 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { usePortal } from '../../context/PortalContext';
-import { getFileBlob } from '../../utils/fileStorage';
-import { generateAcademicPdfBlob } from '../../utils/pdfGenerator';
+import type { PreviewFilePayload } from '../../types/portal';
+import { resolvePdfPayload } from '../../utils/format';
 import { Modal } from './Modal';
 
 export const PdfPreviewModal: React.FC = () => {
-  const { previewFile, closeFilePreview } = usePortal();
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { previewFile, closeFilePreview, currentUser } = usePortal();
+  const [resolved, setResolved] = useState<{
+    file: PreviewFilePayload;
+    url?: string;
+    error?: string;
+  } | null>(null);
+  const result = resolved?.file === previewFile ? resolved : null;
+  const objectUrl = result?.url;
+  const requireOriginal = currentUser?.role === 'mahasiswa';
 
   useEffect(() => {
     let active = true;
     let createdUrl: string | null = null;
 
-    async function resolveBlob() {
-      if (!previewFile) {
-        setObjectUrl(null);
-        return;
-      }
-      setLoading(true);
-      let blob: Blob | null = null;
-      if (previewFile.hasRealBlob) {
-        try {
-          blob = await getFileBlob(previewFile.id);
-        } catch {
-          blob = null;
-        }
-      }
-      if (!blob) {
-        blob = generateAcademicPdfBlob({
-          title: previewFile.title,
-          subtitle: previewFile.subtitle,
-          lines: previewFile.lines,
-        });
-      }
+    setResolved(null);
+    if (!previewFile) return;
+    resolvePdfPayload(previewFile, requireOriginal).then((blob) => {
       if (!active) return;
       createdUrl = URL.createObjectURL(blob);
-      setObjectUrl(createdUrl);
-      setLoading(false);
-    }
-
-    void resolveBlob();
+      setResolved({ file: previewFile, url: createdUrl });
+    }).catch((error: unknown) => {
+      if (active) {
+        setResolved({ file: previewFile, error: error instanceof Error ? error.message : 'Dokumen gagal dimuat.' });
+      }
+    });
 
     return () => {
       active = false;
@@ -49,7 +38,7 @@ export const PdfPreviewModal: React.FC = () => {
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [previewFile]);
+  }, [previewFile, requireOriginal]);
 
   const handleDownload = () => {
     if (!objectUrl || !previewFile) return;
@@ -86,10 +75,10 @@ export const PdfPreviewModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] overflow-hidden h-[520px]">
-            {loading || !objectUrl ? (
-              <div className="flex items-center justify-center h-full body-base text-[#475569]">
-                Memuat dokumen PDF...
+          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] overflow-hidden h-[min(58vh,520px)]">
+            {!objectUrl ? (
+              <div className="flex items-center justify-center h-full body-base text-[#475569] p-4" role="status">
+                {result?.error ?? 'Memuat dokumen PDF…'}
               </div>
             ) : (
               <iframe

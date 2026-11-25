@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Download, Eye, Search } from 'lucide-react';
+import { ChevronDown, Download, Eye, Search } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { usePortal } from '../../context/PortalContext';
@@ -11,17 +11,40 @@ interface CariProposalPageProps {
   pageTitle?: string;
 }
 
+const unknownProgram = 'Belum tercatat';
+
 export const CariProposalPage: React.FC<CariProposalPageProps> = ({
   pageTitle = 'Cari Proposal & TA',
 }) => {
-  const { archive, lecturers, openFilePreview, showToast } = usePortal();
+  const { archive, lecturers, theses, doctoralStudents, maxQuotas, currentUser, openFilePreview, showToast } = usePortal();
+  const isStudent = currentUser?.role === 'mahasiswa';
   const [query, setQuery] = useState('');
   const [advisorFilter, setAdvisorFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('');
+  const [programFilter, setProgramFilter] = useState('');
+  const [extensionFilter, setExtensionFilter] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showEntries, setShowEntries] = useState(5);
   const [pageInput, setPageInput] = useState(1);
   const [selectedEntry, setSelectedEntry] = useState<ArchiveEntry | null>(null);
+
+  const programs = useMemo(() => {
+    const result = new Map<string, string>();
+    for (const record of theses) result.set(record.studentNim, record.programStudi);
+    for (const record of doctoralStudents) result.set(record.nim, record.programStudi);
+    return result;
+  }, [theses, doctoralStudents]);
+  const programFor = (entry: ArchiveEntry) => entry.programStudi?.trim() || programs.get(entry.studentNim) || unknownProgram;
+  const programOptions = Array.from(new Set([
+    ...maxQuotas.map((quota) => quota.department),
+    ...doctoralStudents.map((item) => item.programStudi),
+    ...archive.map(programFor).filter((program) => program !== unknownProgram),
+  ])).sort();
+  if (archive.some((entry) => programFor(entry) === unknownProgram)) programOptions.push(unknownProgram);
+  const semesters = Array.from(new Set(archive.map((entry) => entry.semester)));
+  const advancedCount = [semesterFilter, programFilter, extensionFilter].filter(Boolean).length + selectedTags.length;
 
   const toggleTag = (tag: string) => {
     setPageInput(1);
@@ -30,16 +53,14 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
     );
   };
 
-  // Simplified search: no checkboxes, only searches against non-empty fields + matching selected tags
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLocaleLowerCase('id-ID');
     return archive.filter((item) => {
-      const okQuery =
-        !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.studentName.toLowerCase().includes(q) ||
-        item.studentNim.includes(q) ||
-        item.keywords.some((k) => k.toLowerCase().includes(q));
+      const program = item.programStudi?.trim() || programs.get(item.studentNim) || unknownProgram;
+      const searchable = [item.title, item.studentName, item.studentNim, ...item.keywords];
+      if (isStudent) searchable.push(item.abstract, item.field, item.semester, item.type, program,
+        item.advisor1Name, item.advisor2Name, ...item.tags);
+      const okQuery = !q || searchable.some((value) => value.toLocaleLowerCase('id-ID').includes(q));
       const okAdvisor =
         !advisorFilter ||
         item.advisor1Name === advisorFilter ||
@@ -48,12 +69,15 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
       const okTags =
         selectedTags.length === 0 ||
         selectedTags.every((tag) => item.tags.includes(tag));
-      return okQuery && okAdvisor && okType && okTags;
+      return okQuery && okAdvisor && okType && okTags &&
+        (!semesterFilter || item.semester === semesterFilter) &&
+        (!programFilter || program === programFilter) &&
+        (!extensionFilter || item.isExtension === (extensionFilter === 'ya'));
     });
-  }, [archive, query, advisorFilter, typeFilter, selectedTags]);
+  }, [archive, query, advisorFilter, typeFilter, selectedTags, programs, isStudent, semesterFilter, programFilter, extensionFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / showEntries));
-  const currentPage = Math.min(Math.max(1, pageInput), totalPages);
+  const currentPage = Math.min(Math.max(1, Math.trunc(pageInput)), totalPages);
   const pagedItems = filtered.slice(
     (currentPage - 1) * showEntries,
     currentPage * showEntries,
@@ -67,6 +91,7 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
     lines: [
       `Judul: ${entry.title}`,
       `Penulis: ${entry.studentName} (${entry.studentNim}) | IPK: ${entry.ipk.toFixed(2)}`,
+      ...(isStudent ? [`Program studi: ${programFor(entry)}`, `Bidang: ${entry.field}`, `Kata kunci: ${entry.keywords.join(', ')}`] : []),
       `Periode: ${entry.semester} | Perpanjangan: ${entry.isExtension ? 'Ya' : 'Tidak'}`,
       `Pembimbing: ${entry.advisor1Name}`,
       `Co-Pembimbing: ${entry.advisor2Name}`,
@@ -77,20 +102,19 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
   });
 
   return (
-    <div className="space-y-8">
+    <div className={isStudent ? 'space-y-6' : 'space-y-8'}>
       <div>
         <h1 className="headline-lg text-[#0B1C30]">{pageTitle}</h1>
-        <p className="body-base text-[#475569] mt-1">
+        {!isStudent && <p className="body-base text-[#475569] mt-1">
           Pencarian repositori dokumen Proposal, Tugas Akhir, Tesis S2, dan Disertasi S3 ISTTS
-        </p>
+        </p>}
       </div>
 
-      {/* Simplified Filter Panel (No Checkboxes, Tag Field, Show Entries) */}
-      <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 space-y-4">
+      <section className={`rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 space-y-4 ${isStudent ? 'p-4 sm:p-5' : 'p-6'}`}>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           <div className="md:col-span-5">
             <label htmlFor="archive-search" className="block label-md text-[#0B1C30] mb-1.5">
-              Kata Kunci Judul, NRP, atau Nama
+              {isStudent ? 'Cari dalam arsip' : 'Kata Kunci Judul, NRP, atau Nama'}
             </label>
             <div className="relative">
               <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 stroke-[1.5]" />
@@ -102,8 +126,9 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                   setQuery(e.target.value);
                   setPageInput(1);
                 }}
-                placeholder="Kosongkan untuk menampilkan seluruh data..."
+                placeholder={isStudent ? 'Judul, NRP, nama, atau isi abstrak' : 'Kosongkan untuk menampilkan seluruh data...'}
                 className="input-field pl-9"
+                style={isStudent ? { paddingLeft: '2.25rem' } : undefined}
               />
             </div>
           </div>
@@ -152,10 +177,53 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
           </div>
         </div>
 
-        {/* Tag Selector Field */}
-        <div>
+        {isStudent && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button type="button" aria-expanded={showAdvanced} aria-controls="archive-advanced"
+              onClick={() => setShowAdvanced((visible) => !visible)} className="btn-secondary">
+              Filter lanjutan{advancedCount ? ` (${advancedCount})` : ''}
+              <ChevronDown aria-hidden="true" className={`size-4 ${showAdvanced ? 'rotate-180' : ''}`} />
+            </button>
+            {(query || advisorFilter || typeFilter || advancedCount > 0) && (
+              <button type="button" className="label-md text-[#0F2A66] underline cursor-pointer" onClick={() => {
+                setQuery(''); setAdvisorFilter(''); setTypeFilter(''); setSemesterFilter('');
+                setProgramFilter(''); setExtensionFilter(''); setSelectedTags([]); setPageInput(1);
+              }}>Hapus semua filter</button>
+            )}
+          </div>
+        )}
+        <div id="archive-advanced" hidden={isStudent && !showAdvanced}>
+          {isStudent && (
+            <div className="mb-4 grid gap-3 border-t border-[#E2E8F0] pt-4 md:grid-cols-3">
+              <div>
+                <label htmlFor="archive-semester" className="block label-md mb-1.5">Periode semester</label>
+                <select id="archive-semester" className="input-field" value={semesterFilter}
+                  onChange={(event) => { setSemesterFilter(event.target.value); setPageInput(1); }}>
+                  <option value="">Semua periode</option>
+                  {semesters.map((semester) => <option key={semester}>{semester}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="archive-program" className="block label-md mb-1.5">Jurusan / program studi</label>
+                <select id="archive-program" className="input-field" value={programFilter}
+                  onChange={(event) => { setProgramFilter(event.target.value); setPageInput(1); }}>
+                  <option value="">Semua program studi</option>
+                  {programOptions.map((program) => <option key={program}>{program}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="archive-extension" className="block label-md mb-1.5">Perpanjangan</label>
+                <select id="archive-extension" className="input-field" value={extensionFilter}
+                  onChange={(event) => { setExtensionFilter(event.target.value); setPageInput(1); }}>
+                  <option value="">Semua pengajuan</option>
+                  <option value="ya">Perpanjangan</option>
+                  <option value="tidak">Reguler</option>
+                </select>
+              </div>
+            </div>
+          )}
           <span className="block label-md text-[#0B1C30] mb-2">
-            Tag Topik (Menampilkan dokumen yang memuat seluruh tag terpilih)
+            {isStudent ? 'Topik (semua pilihan harus cocok)' : 'Tag Topik (Menampilkan dokumen yang memuat seluruh tag terpilih)'}
           </span>
           <div className="flex flex-wrap gap-2">
             {AVAILABLE_TAGS.map((tag) => {
@@ -164,6 +232,7 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                 <button
                   key={tag}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => toggleTag(tag)}
                   className={`rounded-full px-3 py-1 label-md border transition-colors cursor-pointer ${
                     active
@@ -179,12 +248,11 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
         </div>
       </section>
 
-      {/* Results Table with Exact Columns + Show Entries + Direct Page Jump */}
       <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
         <div className="px-6 py-4 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-3 ${isStudent ? 'flex-wrap' : ''}`}>
             <label htmlFor="show-entries" className="body-medium text-[#475569]">
-              Show Entries
+              {isStudent ? 'Baris per halaman' : 'Show Entries'}
             </label>
             <select
               id="show-entries"
@@ -194,6 +262,7 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                 setPageInput(1);
               }}
               className="input-field w-24 h-9"
+              style={isStudent ? { width: '5rem' } : undefined}
             >
               <option value={5}>5</option>
               <option value={10}>10</option>
@@ -214,6 +283,7 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
               value={currentPage}
               onChange={(e) => setPageInput(Number(e.target.value) || 1)}
               className="input-field w-20 h-9 text-center"
+              style={isStudent ? { width: '4rem' } : undefined}
             />
             <span className="code-meta text-[#475569]">dari {totalPages}</span>
           </div>
@@ -336,6 +406,12 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                   {selectedEntry.semester} — {selectedEntry.isExtension ? 'Perpanjangan' : 'Reguler'}
                 </p>
               </div>
+              {isStudent && (
+                <div>
+                  <span className="label-md uppercase text-[#475569]">Program studi</span>
+                  <p className="body-medium text-[#0B1C30] mt-0.5">{programFor(selectedEntry)}</p>
+                </div>
+              )}
               <div>
                 <span className="label-md uppercase text-[#475569]">Pembimbing</span>
                 <p className="body-base text-[#0B1C30] mt-0.5">{selectedEntry.advisor1Name}</p>

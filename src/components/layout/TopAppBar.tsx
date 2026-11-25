@@ -105,6 +105,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
   }, [currentUser]);
 
   if (!currentUser) return null;
+  const studentNav = currentUser.role === 'mahasiswa';
 
   const handleSelectNav = (tabId: string) => {
     setActiveTab(tabId);
@@ -113,17 +114,18 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
 
   return (
     <header className="fixed top-0 inset-x-0 z-40 h-[72px] bg-white border-b border-[#E2E8F0]">
-      <div className="mx-auto max-w-[1320px] h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+      <div className={`mx-auto h-full px-4 sm:px-6 flex items-center justify-between ${studentNav ? 'max-w-[1440px] gap-2' : 'max-w-[1320px] gap-4'}`}>
         {/* Left: ISTTS Crest + Portal Title */}
         <button
           type="button"
           onClick={() => handleSelectNav('dashboard')}
+          aria-label={studentNav ? 'Portal Upload Tugas Akhir ISTTS — Dashboard mahasiswa' : undefined}
           className="flex items-center gap-3 shrink-0 text-left cursor-pointer"
         >
           <IsttsLogo className="w-9 h-9 shrink-0" />
           <div className="leading-tight">
             <span className="block font-['Manrope'] text-[15px] font-bold text-[#0F2A66] tracking-[-0.01em] whitespace-nowrap">
-              Portal Upload Tugas Akhir
+              {studentNav ? <><span className="sm:hidden">Portal TA ISTTS</span><span className="hidden sm:inline">Portal Upload Tugas Akhir</span></> : 'Portal Upload Tugas Akhir'}
             </span>
             <span className="hidden sm:block label-sm text-[#475569]">
               ISTTS — {ROLE_LABEL[currentUser.role]}
@@ -134,7 +136,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
         {/* Center: Horizontal Navigation Links */}
         <nav
           aria-label="Navigasi utama"
-          className="hidden lg:flex items-center justify-center gap-3 xl:gap-5 h-full overflow-x-auto"
+          className={studentNav
+            ? 'hidden xl:flex min-w-0 items-center gap-2 h-full overflow-x-auto'
+            : 'hidden lg:flex items-center justify-center gap-3 xl:gap-5 h-full overflow-x-auto'}
         >
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
@@ -142,8 +146,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
               <button
                 key={item.id}
                 type="button"
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => handleSelectNav(item.id)}
-                className={`relative h-full inline-flex items-center px-1 text-[13px] xl:text-[14px] whitespace-nowrap transition-colors cursor-pointer ${
+                className={`relative h-full inline-flex shrink-0 items-center px-1 text-[13px] ${studentNav ? '' : 'xl:text-[14px]'} whitespace-nowrap transition-colors cursor-pointer ${
                   isActive
                     ? 'font-semibold text-[#0F2A66]'
                     : 'font-medium text-[#475569] hover:text-[#0F2A66]'
@@ -183,7 +188,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
             </button>
 
             {notifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-[#E2E8F0] bg-white shadow-level-3 overflow-hidden z-50">
+              <div className={`${studentNav ? 'fixed top-[64px] inset-x-3 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0' : 'absolute right-0 w-80'} mt-2 sm:w-96 rounded-xl border border-[#E2E8F0] bg-white shadow-level-3 overflow-hidden z-50`}>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
                   <span className="body-semibold text-[#0B1C30]">Notifikasi Interaktif</span>
                   {unreadCount > 0 && (
@@ -244,6 +249,8 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
           <div className="relative" ref={profileRef}>
             <button
               type="button"
+              aria-label={studentNav ? `Menu profil ${currentUser.name} (@${currentUser.username})` : undefined}
+              aria-expanded={profileOpen}
               onClick={() => {
                 setProfileOpen((prev) => !prev);
                 setNotifOpen(false);
@@ -253,7 +260,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
               <div className="w-8 h-8 rounded-full bg-[#0F2A66] text-white flex items-center justify-center label-md shrink-0">
                 {currentUser.initials}
               </div>
-              <div className="hidden sm:block text-left max-w-[150px]">
+              <div className={`hidden sm:block ${studentNav ? 'xl:max-[1380px]:hidden' : ''} text-left max-w-[150px]`}>
                 <p className="body-semibold text-[#0B1C30] truncate">{currentUser.name}</p>
                 <p className="code-meta text-[#475569] truncate">@{currentUser.username}</p>
               </div>
@@ -331,8 +338,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="lg:hidden p-2 rounded-lg text-[#475569] hover:bg-[#F1F5F9] cursor-pointer"
+            className={`${studentNav ? 'xl:hidden' : 'lg:hidden'} p-2 rounded-lg text-[#475569] hover:bg-[#F1F5F9] cursor-pointer`}
             aria-label="Menu navigasi"
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
               <X className="w-5 h-5 stroke-[1.5]" />
@@ -345,7 +353,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-b border-[#E2E8F0] bg-white shadow-level-2 px-4 py-3">
+        <div className={`${studentNav ? 'xl:hidden' : 'lg:hidden'} border-b border-[#E2E8F0] bg-white shadow-level-2 px-4 py-3`}>
           <div className="flex flex-col gap-1">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
@@ -353,6 +361,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
                 <button
                   key={item.id}
                   type="button"
+                  aria-current={isActive ? 'page' : undefined}
                   onClick={() => handleSelectNav(item.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-lg body-medium cursor-pointer ${
                     isActive
