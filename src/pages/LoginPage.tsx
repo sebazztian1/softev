@@ -106,11 +106,7 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             <div>
               <label htmlFor="login-id" className="block label-md text-[#0B1C30] mb-1.5">
-<<<<<<< HEAD
-                Username / NIM / NIDN
-=======
                 Username / NRP / NIDN / Surel Institusi
->>>>>>> 7de32a44df5b5d3926ab86ed1632edcf0af369ea
               </label>
               <input
                 id="login-id"
@@ -126,24 +122,6 @@ export const LoginPage: React.FC = () => {
               <label htmlFor="login-pw" className="block label-md text-[#0B1C30] mb-1.5">
                 Kata Sandi
               </label>
-<<<<<<< HEAD
-              <input
-                id="login-pw"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan kata sandi"
-                className="input-field pr-12"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((visible) => !visible)}
-                className="relative -mt-[34px] ml-auto mr-3 flex h-6 items-center text-[#475569]"
-                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-=======
               <div className="relative">
                 <input
                   id="login-pw"
@@ -157,29 +135,12 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded text-[#475569] hover:text-[#0F2A66] cursor-pointer"
-                  aria-label={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
-                  title={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
+                  aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4 stroke-[1.5]" />
-                  ) : (
-                    <Eye className="w-4 h-4 stroke-[1.5]" />
-                  )}
+                  {showPassword ? <EyeOff className="w-4 h-4 stroke-[1.5]" /> : <Eye className="w-4 h-4 stroke-[1.5]" />}
                 </button>
               </div>
-              <div className="flex items-center justify-between mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="code-meta text-[#0284C7] hover:underline cursor-pointer"
-                >
-                  {showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
-                </button>
-                <span className="code-meta text-[#64748B]">
-                  Lupa kata sandi: hubungi Departemen IT ISTTS
-                </span>
-              </div>
->>>>>>> 7de32a44df5b5d3926ab86ed1632edcf0af369ea
             </div>
 
             {error && (
@@ -189,11 +150,7 @@ export const LoginPage: React.FC = () => {
             )}
 
             <button type="submit" className="btn-primary w-full">
-<<<<<<< HEAD
               Masuk
-=======
-              Login
->>>>>>> 7de32a44df5b5d3926ab86ed1632edcf0af369ea
             </button>
             <p className="body-base text-[#475569]">
               Jika lupa kata sandi, hubungi Departemen IT.
