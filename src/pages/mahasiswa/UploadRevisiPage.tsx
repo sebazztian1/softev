@@ -6,13 +6,16 @@ import { FileDropzone } from '../../components/ui/FileDropzone';
 import { QrCodeSvg } from '../../components/ui/QrCodeSvg';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
-import { formatCountdown, formatDateTimeId } from '../../utils/format';
+import { formatCountdown, formatDateTimeId, getLecturerName } from '../../utils/format';
 
 export const UploadRevisiPage: React.FC = () => {
-  const { studentThesis, period, uploadRevision, setActiveTab, showToast } = usePortal();
+  const { currentUser, studentThesis, lecturers, period, uploadRevision, setActiveTab, showToast } =
+    usePortal();
   const [summary, setSummary] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  if (!currentUser) return null;
 
   if (!studentThesis) {
     return (
@@ -65,13 +68,13 @@ export const UploadRevisiPage: React.FC = () => {
         <div>
           <h1 className="headline-lg text-[#0B1C30]">Upload Revisi</h1>
           <p className="body-base text-[#475569] mt-1">
-            {studentThesis.studentName} ({studentThesis.studentNim}) — Tahap: {studentThesis.stage}
+            {studentThesis.studentName} ({studentThesis.studentNim}) — Periode {period.semesterLabel}
           </p>
         </div>
         <StatusBadge status={studentThesis.status} />
       </div>
 
-      {studentThesis.status === 'Perlu Revisi' && (
+      {(studentThesis.status === 'Perlu Revisi' || studentThesis.status === 'Diperbaiki') && (
         <AlertBanner
           variant="warning"
           title={`Batas Akhir Unggah Revisi Sidang Proposal: ${countdown.label}`}
@@ -79,8 +82,65 @@ export const UploadRevisiPage: React.FC = () => {
         />
       )}
 
+      {studentThesis.submissionType === 'Perpanjangan' && (
+        <div className="rounded-xl border border-[#FCA5A5] bg-[#FEE2E2] px-4 py-3.5 text-[#991B1B]">
+          <p className="body-semibold">Status Pengerjaan: Perpanjangan</p>
+          <p className="body-base mt-0.5">
+            Pada pengajuan Perpanjangan, data judul dan dosen pembimbing tidak dapat diubah kembali.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
+          {/* Profil Mahasiswa Read-Only */}
+          <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 sm:p-8">
+            <h2 className="headline-md text-[#0F2A66] pb-4 border-b border-[#E2E8F0]">
+              Profil Mahasiswa &amp; Data Pengerjaan
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+              <div>
+                <span className="label-md uppercase text-[#475569]">NRP / Username</span>
+                <p className="body-medium text-[#0B1C30] mt-0.5">
+                  {currentUser.identifier} (@{currentUser.username})
+                </p>
+              </div>
+              <div>
+                <span className="label-md uppercase text-[#475569]">Nama Mahasiswa</span>
+                <p className="body-medium text-[#0B1C30] mt-0.5">{currentUser.name}</p>
+              </div>
+              <div>
+                <span className="label-md uppercase text-[#475569]">Email</span>
+                <p className="body-medium text-[#0B1C30] mt-0.5 truncate">{currentUser.email}</p>
+              </div>
+              <div>
+                <span className="label-md uppercase text-[#475569]">Jurusan</span>
+                <p className="body-medium text-[#0B1C30] mt-0.5">{currentUser.department}</p>
+              </div>
+              <div>
+                <span className="label-md uppercase text-[#475569]">IPK</span>
+                <p className="body-semibold text-[#0F2A66] mt-0.5">
+                  {currentUser.ipk?.toFixed(2) ?? studentThesis.ipk.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <span className="label-md uppercase text-[#475569]">Jenis Pengerjaan</span>
+                <p className="body-medium text-[#0B1C30] mt-0.5">
+                  {studentThesis.submissionType}
+                </p>
+              </div>
+              <div className="sm:col-span-3 pt-3 border-t border-[#E2E8F0]">
+                <span className="label-md uppercase text-[#475569]">
+                  Pembimbing (Maksimal kuota {period.maxAdvisorQuota} bimbingan per dosen)
+                </span>
+                <p className="body-base text-[#0B1C30] mt-0.5">
+                  {getLecturerName(lecturers, studentThesis.advisor1Id)} &amp;{' '}
+                  {getLecturerName(lecturers, studentThesis.advisor2Id)}
+                </p>
+              </div>
+            </div>
+          </section>
+
           {/* Catatan Revisi dari Dosen */}
           <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 sm:p-8">
             <h2 className="headline-md text-[#0F2A66] pb-4 border-b border-[#E2E8F0]">
@@ -148,7 +208,7 @@ export const UploadRevisiPage: React.FC = () => {
 
             <div className="flex justify-end pt-4 border-t border-[#E2E8F0]">
               <button type="submit" disabled={submitting} className="btn-primary">
-                {submitting ? 'Mengunggah Revisi...' : 'Unggah Revisi'}
+                {submitting ? 'Mengunggah Revisi...' : 'Submit dan Lanjutkan'}
               </button>
             </div>
           </form>
@@ -168,8 +228,8 @@ export const UploadRevisiPage: React.FC = () => {
                   {studentThesis.revisionQrToken}
                 </p>
                 <p className="code-meta text-[#475569] mt-1">
-                  Tunjukkan kode QR ini kepada Dosen Pembimbing atau Penguji untuk persetujuan
-                  revisi secara langsung.
+                  Tunjukkan kode QR ini kepada Dosen Pembimbing atau Kaprodi untuk persetujuan
+                  revisi tanpa perlu mengunduh ulang berkas secara manual.
                 </p>
               </div>
             </section>

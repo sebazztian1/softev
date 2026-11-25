@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, RotateCcw } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { usePortal } from '../context/PortalContext';
 import { IsttsLogo } from '../components/ui/IsttsLogo';
 import { UserRole } from '../types/portal';
@@ -15,7 +15,7 @@ const SIMULATION_ROLES: Array<{
     role: 'mahasiswa',
     title: 'Mahasiswa',
     name: 'Kevin Hartanto',
-    identifier: 'NIM 221116942 — S1 Informatika',
+    identifier: 'NRP 221116942 — S1 Informatika',
     username: 'kevin.hartanto',
   },
   {
@@ -38,13 +38,14 @@ export const LoginPage: React.FC = () => {
   const { login, loginAsRole, resetDemoData } = usePortal();
   const [identifier, setIdentifier] = useState('hendra.wijaya');
   const [password, setPassword] = useState('istts2026');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!identifier.trim() || !password.trim()) {
-      setError('Masukkan username, NIM/NIDN, atau surel dan kata sandi terlebih dahulu.');
+      setError('Masukkan username, NRP/NIDN, atau surel dan kata sandi terlebih dahulu.');
       return;
     }
     const ok = login(identifier);
@@ -70,7 +71,7 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             <div>
               <label htmlFor="login-id" className="block label-md text-[#0B1C30] mb-1.5">
-                Username / NIM / NIDN / Surel Institusi
+                Username / NRP / NIDN / Surel Institusi
               </label>
               <input
                 id="login-id"
@@ -86,14 +87,41 @@ export const LoginPage: React.FC = () => {
               <label htmlFor="login-pw" className="block label-md text-[#0B1C30] mb-1.5">
                 Kata Sandi
               </label>
-              <input
-                id="login-pw"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan kata sandi"
-                className="input-field"
-              />
+              <div className="relative">
+                <input
+                  id="login-pw"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Masukkan kata sandi"
+                  className="input-field pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded text-[#475569] hover:text-[#0F2A66] cursor-pointer"
+                  aria-label={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
+                  title={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4 stroke-[1.5]" />
+                  ) : (
+                    <Eye className="w-4 h-4 stroke-[1.5]" />
+                  )}
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="code-meta text-[#0284C7] hover:underline cursor-pointer"
+                >
+                  {showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
+                </button>
+                <span className="code-meta text-[#64748B]">
+                  Lupa kata sandi: hubungi Departemen IT ISTTS
+                </span>
+              </div>
             </div>
 
             {error && (
@@ -103,7 +131,7 @@ export const LoginPage: React.FC = () => {
             )}
 
             <button type="submit" className="btn-primary w-full">
-              Masuk ke Portal
+              Login
             </button>
           </form>
 

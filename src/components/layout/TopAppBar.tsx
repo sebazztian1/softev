@@ -22,10 +22,11 @@ const MAHASISWA_NAV: NavItem[] = [
 
 const KAPRODI_NAV: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'verifikasi-proposal', label: 'Verifikasi Proposal' },
+  { id: 'plotting-reviewer', label: 'Plotting Reviewer' },
   { id: 'penjadwalan-sidang', label: 'Penjadwalan Sidang' },
-  { id: 'monitoring-ta', label: 'Monitoring TA' },
-  { id: 'pengaturan-periode', label: 'Pengaturan Periode' },
+  { id: 'setting-maksimum', label: 'Setting Maksimum' },
+  { id: 'laporan', label: 'Laporan' },
+  { id: 'cari-dokumen', label: 'Cari Dokumen' },
 ];
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -89,7 +90,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenProfile }) => {
       items.push({ id: 'promotor-s3', label: 'Promotor S3' });
     }
     if (roles.includes('koordinator-jadwal')) {
-      items.push({ id: 'sinkronisasi-jadwal', label: 'Sinkronisasi Jadwal' });
+      items.push({ id: 'sinkronisasi-jadwal', label: 'Kalender Jadwal' });
     }
     return items;
   }, [currentUser]);

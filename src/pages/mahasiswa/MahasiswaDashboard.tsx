@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Check, Eye, FileText } from 'lucide-react';
+import { BookOpen, Calendar, Check, Eye, FileText } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -34,15 +34,20 @@ export const MahasiswaDashboard: React.FC = () => {
   if (!currentUser) return null;
 
   const currentStageIndex = studentThesis ? STAGES.indexOf(studentThesis.stage) : 0;
-  const countdown = formatCountdown(
+  const countdownRevision = formatCountdown(
     studentThesis?.revisionDeadline ?? period.revisionDeadline,
   );
+  const countdownProposal = formatCountdown(period.proposalDeadline);
 
   const getPrimaryCta = () => {
     if (!studentThesis) {
       return { label: 'Unggah Proposal', tab: 'upload-proposal' };
     }
-    if (studentThesis.status === 'Perlu Revisi' || studentThesis.stage === 'Revisi Proposal') {
+    if (
+      studentThesis.status === 'Perlu Revisi' ||
+      studentThesis.status === 'Diperbaiki' ||
+      studentThesis.stage === 'Revisi Proposal'
+    ) {
       return { label: 'Unggah Revisi', tab: 'upload-revisi' };
     }
     if (studentThesis.status === 'Ditolak') {
@@ -55,12 +60,12 @@ export const MahasiswaDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Page Header (Where / What / Next) */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="headline-lg text-[#0B1C30]">Dashboard Tugas Akhir</h1>
           <p className="body-base text-[#475569] mt-1">
-            {currentUser.name} — NIM {currentUser.identifier} — {currentUser.department} —{' '}
+            {currentUser.name} — NRP {currentUser.identifier} — {currentUser.department} —{' '}
             {period.semesterLabel}
           </p>
         </div>
@@ -68,15 +73,89 @@ export const MahasiswaDashboard: React.FC = () => {
       </div>
 
       {/* Deadline Warning Banner */}
-      {studentThesis && studentThesis.status === 'Perlu Revisi' && (
-        <AlertBanner
-          variant="warning"
-          title={`Batas Akhir Unggah Revisi Sidang Proposal: ${countdown.label}`}
-          description={`Pastikan berkas revisi dalam format .PDF diunggah sebelum ${formatDateTimeId(
-            studentThesis.revisionDeadline ?? period.revisionDeadline,
-          )}.`}
-        />
-      )}
+      {studentThesis &&
+        (studentThesis.status === 'Perlu Revisi' || studentThesis.status === 'Diperbaiki') && (
+          <AlertBanner
+            variant="warning"
+            title={`Batas Akhir Unggah Revisi Sidang Proposal: ${countdownRevision.label}`}
+            description={`Pastikan berkas revisi dalam format .PDF diunggah sebelum ${formatDateTimeId(
+              studentThesis.revisionDeadline ?? period.revisionDeadline,
+            )}.`}
+          />
+        )}
+
+      {/* Tabel Tanggal Periode TA Berjalan */}
+      <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
+            <h2 className="headline-sm text-[#0B1C30]">Periode Tugas Akhir Berjalan</h2>
+          </div>
+          <span className="code-meta text-[#475569]">Ditetapkan oleh {period.managedBy}</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#F1F5F9] border-b border-[#E2E8F0]">
+                <th className="py-3 px-6 label-md uppercase text-[#475569]">Periode</th>
+                <th className="py-3 px-4 label-md uppercase text-[#475569]">Status</th>
+                <th className="py-3 px-4 label-md uppercase text-[#475569]">Tanggal</th>
+                <th className="py-3 px-4 label-md uppercase text-[#475569]">Countdown</th>
+                <th className="py-3 px-6 label-md uppercase text-[#475569] text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E2E8F0]">
+              <tr className="bg-white">
+                <td className="py-3.5 px-6 body-semibold text-[#0B1C30]">
+                  Pengajuan Proposal ({period.semesterLabel})
+                </td>
+                <td className="py-3.5 px-4">
+                  <StatusBadge status="Tersedia" />
+                </td>
+                <td className="py-3.5 px-4 body-base text-[#0B1C30]">
+                  s.d. {formatDateId(period.proposalDeadline)}
+                </td>
+                <td className="py-3.5 px-4 code-meta text-[#0F2A66] font-semibold">
+                  {countdownProposal.label}
+                </td>
+                <td className="py-3.5 px-6 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('upload-proposal')}
+                    className="btn-secondary"
+                  >
+                    Upload Proposal
+                  </button>
+                </td>
+              </tr>
+              <tr className="bg-[#F8FAFC]">
+                <td className="py-3.5 px-6 body-semibold text-[#0B1C30]">
+                  Unggah Revisi Sidang Proposal
+                </td>
+                <td className="py-3.5 px-4">
+                  <StatusBadge status={studentThesis?.status ?? 'Menunggu Verifikasi'} />
+                </td>
+                <td className="py-3.5 px-4 body-base text-[#0B1C30]">
+                  {formatDateTimeId(studentThesis?.revisionDeadline ?? period.revisionDeadline)}
+                </td>
+                <td className="py-3.5 px-4 code-meta text-[#C2410C] font-semibold">
+                  {countdownRevision.label}
+                </td>
+                <td className="py-3.5 px-6 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('upload-revisi')}
+                    className="btn-secondary"
+                  >
+                    Upload Revisi
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* Main 12-Column Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -85,9 +164,7 @@ export const MahasiswaDashboard: React.FC = () => {
           {/* Thesis Summary Card */}
           <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E2E8F0]">
-              <div>
-                <h2 className="headline-md text-[#0F2A66]">Ringkasan Tugas Akhir</h2>
-              </div>
+              <h2 className="headline-md text-[#0F2A66]">Ringkasan Tugas Akhir</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab(primaryCta.tab)}
@@ -113,7 +190,9 @@ export const MahasiswaDashboard: React.FC = () => {
             ) : (
               <div className="mt-5 space-y-6">
                 <div>
-                  <span className="label-md uppercase text-[#475569]">Judul Tugas Akhir</span>
+                  <span className="label-md uppercase text-[#475569]">
+                    Judul Tugas Akhir ({studentThesis.submissionType})
+                  </span>
                   <p className="headline-sm text-[#0B1C30] mt-1">{studentThesis.title}</p>
                 </div>
 
@@ -127,13 +206,13 @@ export const MahasiswaDashboard: React.FC = () => {
                     <p className="body-medium text-[#0B1C30] mt-1">{studentThesis.stage}</p>
                   </div>
                   <div>
-                    <span className="label-md uppercase text-[#475569]">Dosen Pembimbing 1</span>
+                    <span className="label-md uppercase text-[#475569]">Dosen Pembimbing</span>
                     <p className="body-medium text-[#0B1C30] mt-1">
                       {getLecturerName(lecturers, studentThesis.advisor1Id)}
                     </p>
                   </div>
                   <div>
-                    <span className="label-md uppercase text-[#475569]">Dosen Pembimbing 2</span>
+                    <span className="label-md uppercase text-[#475569]">Co-Pembimbing</span>
                     <p className="body-medium text-[#0B1C30] mt-1">
                       {getLecturerName(lecturers, studentThesis.advisor2Id)}
                     </p>
@@ -154,7 +233,10 @@ export const MahasiswaDashboard: React.FC = () => {
                           studentThesis.status === 'Diterima');
                       const isCurrent = index === currentStageIndex && !isDone;
                       return (
-                        <li key={stage} className="flex sm:flex-col items-center sm:items-start gap-2.5">
+                        <li
+                          key={stage}
+                          className="flex sm:flex-col items-center sm:items-start gap-2.5"
+                        >
                           <div
                             className={`w-7 h-7 rounded-full flex items-center justify-center label-md border shrink-0 ${
                               isDone
@@ -271,43 +353,27 @@ export const MahasiswaDashboard: React.FC = () => {
 
         {/* Right 4 Columns */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Jadwal & Batas Akhir */}
+          {/* Pedoman Pengajuan Proposal TA/Tesis */}
           <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6">
             <div className="flex items-center gap-2 pb-4 border-b border-[#E2E8F0]">
-              <Calendar className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
-              <h2 className="headline-sm text-[#0B1C30]">Jadwal &amp; Batas Akhir</h2>
+              <BookOpen className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
+              <h2 className="headline-sm text-[#0B1C30]">Pedoman Pengajuan Proposal</h2>
             </div>
 
-            <dl className="divide-y divide-[#E2E8F0] mt-2">
-              <div className="py-3">
-                <dt className="label-md uppercase text-[#475569]">Batas Pengajuan Proposal</dt>
-                <dd className="body-medium text-[#0B1C30] mt-1">
-                  {formatDateId(period.proposalDeadline)}
-                </dd>
-              </div>
-              <div className="py-3">
-                <dt className="label-md uppercase text-[#475569]">Periode Sidang Proposal</dt>
-                <dd className="body-medium text-[#0B1C30] mt-1">{period.defenseWindow}</dd>
-              </div>
-              <div className="py-3">
-                <dt className="label-md uppercase text-[#475569]">Batas Unggah Revisi</dt>
-                <dd className="body-medium text-[#0B1C30] mt-1">
-                  {formatDateTimeId(studentThesis?.revisionDeadline ?? period.revisionDeadline)}
-                </dd>
-              </div>
-              {studentThesis?.defenseSchedule && (
-                <div className="py-3">
-                  <dt className="label-md uppercase text-[#475569]">Jadwal Sidang Anda</dt>
-                  <dd className="body-semibold text-[#0F2A66] mt-1">
-                    {formatDateId(studentThesis.defenseSchedule.date)},{' '}
-                    {studentThesis.defenseSchedule.time}
-                  </dd>
-                  <dd className="code-meta text-[#475569] mt-0.5">
-                    {studentThesis.defenseSchedule.room}
-                  </dd>
-                </div>
-              )}
-            </dl>
+            <ol className="divide-y divide-[#E2E8F0] mt-1">
+              <li className="py-3 body-base text-[#0B1C30]">
+                1. Konsultasikan topik dengan calon Dosen Pembimbing yang kuotanya belum penuh.
+              </li>
+              <li className="py-3 body-base text-[#0B1C30]">
+                2. Unduh Formulir Proposal TA dari halaman Upload Proposal dan lengkapi Bab 1-3.
+              </li>
+              <li className="py-3 body-base text-[#0B1C30]">
+                3. Pilih tag topik yang sesuai agar sistem dapat merekomendasikan tim reviewer.
+              </li>
+              <li className="py-3 body-base text-[#0B1C30]">
+                4. Unggah berkas revisi pasca-sidang sebelum tenggat dan tunjukkan QR verifikasi.
+              </li>
+            </ol>
           </section>
 
           {/* Catatan Penilai Terbaru */}
@@ -322,7 +388,7 @@ export const MahasiswaDashboard: React.FC = () => {
               </p>
             ) : (
               <div className="divide-y divide-[#E2E8F0]">
-                {studentThesis.evaluations.slice(0, 3).map((ev) => (
+                {studentThesis.evaluations.slice(0, 4).map((ev) => (
                   <div key={ev.id} className="py-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="body-semibold text-[#0B1C30]">{ev.evaluatorRole}</span>

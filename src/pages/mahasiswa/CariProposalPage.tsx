@@ -3,6 +3,7 @@ import { Download, Eye, Search } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { usePortal } from '../../context/PortalContext';
+import { AVAILABLE_TAGS } from '../../data/seedData';
 import { ArchiveEntry } from '../../types/portal';
 import { downloadPdfPayload } from '../../utils/format';
 
@@ -13,31 +14,50 @@ interface CariProposalPageProps {
 export const CariProposalPage: React.FC<CariProposalPageProps> = ({
   pageTitle = 'Cari Proposal & TA',
 }) => {
-  const { archive, openFilePreview, showToast } = usePortal();
+  const { archive, lecturers, openFilePreview, showToast } = usePortal();
   const [query, setQuery] = useState('');
-  const [fieldFilter, setFieldFilter] = useState('Semua');
-  const [typeFilter, setTypeFilter] = useState('Semua');
+  const [advisorFilter, setAdvisorFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showEntries, setShowEntries] = useState(5);
+  const [pageInput, setPageInput] = useState(1);
   const [selectedEntry, setSelectedEntry] = useState<ArchiveEntry | null>(null);
 
-  const fields = useMemo(
-    () => ['Semua', ...Array.from(new Set(archive.map((a) => a.field)))],
-    [archive],
-  );
+  const toggleTag = (tag: string) => {
+    setPageInput(1);
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
 
+  // Simplified search: no checkboxes, only searches against non-empty fields + matching selected tags
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return archive.filter((item) => {
-      const matchesQuery =
+      const okQuery =
         !q ||
         item.title.toLowerCase().includes(q) ||
         item.studentName.toLowerCase().includes(q) ||
         item.studentNim.includes(q) ||
         item.keywords.some((k) => k.toLowerCase().includes(q));
-      const matchesField = fieldFilter === 'Semua' || item.field === fieldFilter;
-      const matchesType = typeFilter === 'Semua' || item.type === typeFilter;
-      return matchesQuery && matchesField && matchesType;
+      const okAdvisor =
+        !advisorFilter ||
+        item.advisor1Name === advisorFilter ||
+        item.advisor2Name === advisorFilter;
+      const okType = !typeFilter || item.type === typeFilter;
+      const okTags =
+        selectedTags.length === 0 ||
+        selectedTags.every((tag) => item.tags.includes(tag));
+      return okQuery && okAdvisor && okType && okTags;
     });
-  }, [archive, query, fieldFilter, typeFilter]);
+  }, [archive, query, advisorFilter, typeFilter, selectedTags]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / showEntries));
+  const currentPage = Math.min(Math.max(1, pageInput), totalPages);
+  const pagedItems = filtered.slice(
+    (currentPage - 1) * showEntries,
+    currentPage * showEntries,
+  );
 
   const toPdfPayload = (entry: ArchiveEntry) => ({
     id: entry.id,
@@ -46,12 +66,11 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
     subtitle: `${entry.studentName} (${entry.studentNim}) — ${entry.type}`,
     lines: [
       `Judul: ${entry.title}`,
-      `Penulis: ${entry.studentName} (${entry.studentNim})`,
-      `Jenis Dokumen: ${entry.type}`,
-      `Tahun: ${entry.year}`,
-      `Pembimbing / Promotor 1: ${entry.advisor1Name}`,
-      `Pembimbing / Promotor 2: ${entry.advisor2Name}`,
-      `Kata Kunci: ${entry.keywords.join(', ')}`,
+      `Penulis: ${entry.studentName} (${entry.studentNim}) | IPK: ${entry.ipk.toFixed(2)}`,
+      `Periode: ${entry.semester} | Perpanjangan: ${entry.isExtension ? 'Ya' : 'Tidak'}`,
+      `Pembimbing: ${entry.advisor1Name}`,
+      `Co-Pembimbing: ${entry.advisor2Name}`,
+      `Tag: ${entry.tags.join(', ')}`,
       `Abstrak: ${entry.abstract}`,
     ],
     hasRealBlob: false,
@@ -62,16 +81,16 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
       <div>
         <h1 className="headline-lg text-[#0B1C30]">{pageTitle}</h1>
         <p className="body-base text-[#475569] mt-1">
-          Direktori repositori dokumen Tugas Akhir, Tesis S2, dan Disertasi S3 ISTTS
+          Pencarian repositori dokumen Proposal, Tugas Akhir, Tesis S2, dan Disertasi S3 ISTTS
         </p>
       </div>
 
-      {/* Filter Panel */}
-      <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6">
+      {/* Simplified Filter Panel (No Checkboxes, Tag Field, Show Entries) */}
+      <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-6">
+          <div className="md:col-span-5">
             <label htmlFor="archive-search" className="block label-md text-[#0B1C30] mb-1.5">
-              Kata Kunci Judul, Penulis, atau Topik
+              Kata Kunci Judul, NRP, atau Nama
             </label>
             <div className="relative">
               <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 stroke-[1.5]" />
@@ -79,26 +98,33 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                 id="archive-search"
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Cari judul, NIM, nama penulis, atau kata kunci..."
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPageInput(1);
+                }}
+                placeholder="Kosongkan untuk menampilkan seluruh data..."
                 className="input-field pl-9"
               />
             </div>
           </div>
 
-          <div className="md:col-span-3">
-            <label htmlFor="archive-field" className="block label-md text-[#0B1C30] mb-1.5">
-              Bidang Minat
+          <div className="md:col-span-4">
+            <label htmlFor="archive-adv" className="block label-md text-[#0B1C30] mb-1.5">
+              Dosen Pembimbing
             </label>
             <select
-              id="archive-field"
-              value={fieldFilter}
-              onChange={(e) => setFieldFilter(e.target.value)}
+              id="archive-adv"
+              value={advisorFilter}
+              onChange={(e) => {
+                setAdvisorFilter(e.target.value);
+                setPageInput(1);
+              }}
               className="input-field"
             >
-              {fields.map((f) => (
-                <option key={f} value={f}>
-                  {f}
+              <option value="">Semua Dosen</option>
+              {lecturers.map((l) => (
+                <option key={l.id} value={l.name}>
+                  {l.name}
                 </option>
               ))}
             </select>
@@ -111,10 +137,13 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
             <select
               id="archive-type"
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setPageInput(1);
+              }}
               className="input-field"
             >
-              <option value="Semua">Semua Jenis</option>
+              <option value="">Semua Jenis</option>
               <option value="Proposal TA">Proposal TA</option>
               <option value="Laporan TA">Laporan TA</option>
               <option value="Tesis S2">Tesis S2</option>
@@ -122,16 +151,75 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
             </select>
           </div>
         </div>
+
+        {/* Tag Selector Field */}
+        <div>
+          <span className="block label-md text-[#0B1C30] mb-2">
+            Tag Topik (Menampilkan dokumen yang memuat seluruh tag terpilih)
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {AVAILABLE_TAGS.map((tag) => {
+              const active = selectedTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  className={`rounded-full px-3 py-1 label-md border transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-[#0F2A66] text-white border-[#0F2A66]'
+                      : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]'
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
-      {/* Results Table */}
+      {/* Results Table with Exact Columns + Show Entries + Direct Page Jump */}
       <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-          <h2 className="headline-sm text-[#0B1C30]">Hasil Penelusuran Dokumen</h2>
-          <span className="code-meta text-[#475569]">{filtered.length} dokumen ditemukan</span>
+        <div className="px-6 py-4 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <label htmlFor="show-entries" className="body-medium text-[#475569]">
+              Show Entries
+            </label>
+            <select
+              id="show-entries"
+              value={showEntries}
+              onChange={(e) => {
+                setShowEntries(Number(e.target.value));
+                setPageInput(1);
+              }}
+              className="input-field w-24 h-9"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+            </select>
+            <span className="code-meta text-[#475569]">{filtered.length} dokumen ditemukan</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="jump-page" className="body-medium text-[#475569]">
+              Halaman
+            </label>
+            <input
+              id="jump-page"
+              type="number"
+              min={1}
+              max={totalPages}
+              value={currentPage}
+              onChange={(e) => setPageInput(Number(e.target.value) || 1)}
+              className="input-field w-20 h-9 text-center"
+            />
+            <span className="code-meta text-[#475569]">dari {totalPages}</span>
+          </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {pagedItems.length === 0 ? (
           <EmptyState
             icon={Search}
             message="Tidak ditemukan dokumen Tugas Akhir atau Tesis yang sesuai dengan filter pencarian."
@@ -141,36 +229,61 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#F1F5F9] border-b border-[#E2E8F0]">
-                  <th className="py-3 px-6 label-md uppercase text-[#475569]">Judul &amp; Kata Kunci</th>
-                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Penulis</th>
-                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Bidang</th>
-                  <th className="py-3 px-4 label-md uppercase text-[#475569] text-right">Tahun</th>
-                  <th className="py-3 px-6 label-md uppercase text-[#475569] text-right">Aksi</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">NRP</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Nama</th>
+                  <th className="py-3 px-3 label-md uppercase text-[#475569] text-right">IPK</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Judul</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Pembimbing</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Co-Pembimbing</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569]">Periode</th>
+                  <th className="py-3 px-3 label-md uppercase text-[#475569]">Perpanjangan</th>
+                  <th className="py-3 px-4 label-md uppercase text-[#475569] text-right">
+                    Download
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
-                {filtered.map((item, idx) => (
+                {pagedItems.map((item, idx) => (
                   <tr key={item.id} className={idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}>
-                    <td className="py-4 px-6 max-w-md">
-                      <p className="body-semibold text-[#0B1C30]">{item.title}</p>
-                      <p className="code-meta text-[#475569] mt-1">
-                        {item.type} — {item.keywords.join(', ')}
+                    <td className="py-3.5 px-4 code-meta text-[#0B1C30] whitespace-nowrap">
+                      {item.studentNim}
+                    </td>
+                    <td className="py-3.5 px-4 body-semibold text-[#0B1C30] whitespace-nowrap">
+                      {item.studentName}
+                    </td>
+                    <td className="py-3.5 px-3 body-semibold text-[#0F2A66] text-right whitespace-nowrap">
+                      {item.ipk.toFixed(2)}
+                    </td>
+                    <td className="py-3.5 px-4 max-w-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEntry(item)}
+                        className="body-medium text-[#0B1C30] hover:text-[#0284C7] text-left cursor-pointer"
+                      >
+                        {item.title}
+                      </button>
+                      <p className="code-meta text-[#475569] mt-0.5">
+                        {item.type} — {item.tags.join(', ')}
                       </p>
                     </td>
-                    <td className="py-4 px-4 whitespace-nowrap">
-                      <p className="body-medium text-[#0B1C30]">{item.studentName}</p>
-                      <p className="code-meta text-[#475569]">{item.studentNim}</p>
+                    <td className="py-3.5 px-4 code-meta text-[#0B1C30] max-w-[160px]">
+                      {item.advisor1Name}
                     </td>
-                    <td className="py-4 px-4 body-base text-[#0B1C30]">{item.field}</td>
-                    <td className="py-4 px-4 code-meta text-[#475569] text-right whitespace-nowrap">
-                      {item.year}
+                    <td className="py-3.5 px-4 code-meta text-[#475569] max-w-[160px]">
+                      {item.advisor2Name}
                     </td>
-                    <td className="py-4 px-6 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-2">
+                    <td className="py-3.5 px-4 code-meta text-[#475569] whitespace-nowrap">
+                      {item.semester}
+                    </td>
+                    <td className="py-3.5 px-3 code-meta text-[#0B1C30] whitespace-nowrap">
+                      {item.isExtension ? 'Ya' : 'Tidak'}
+                    </td>
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => setSelectedEntry(item)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5 stroke-[1.5]" />
                           Detail
@@ -182,7 +295,7 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
                             void downloadPdfPayload(payload);
                             showToast(`Mengunduh ${payload.fileName}`);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5 stroke-[1.5]" />
                           Unduh
@@ -213,21 +326,22 @@ export const CariProposalPage: React.FC<CariProposalPageProps> = ({
               <div>
                 <span className="label-md uppercase text-[#475569]">Penulis</span>
                 <p className="body-medium text-[#0B1C30] mt-0.5">
-                  {selectedEntry.studentName} ({selectedEntry.studentNim})
+                  {selectedEntry.studentName} ({selectedEntry.studentNim}) — IPK{' '}
+                  {selectedEntry.ipk.toFixed(2)}
                 </p>
               </div>
               <div>
-                <span className="label-md uppercase text-[#475569]">Tahun &amp; Bidang</span>
+                <span className="label-md uppercase text-[#475569]">Periode &amp; Perpanjangan</span>
                 <p className="body-medium text-[#0B1C30] mt-0.5">
-                  {selectedEntry.year} — {selectedEntry.field}
+                  {selectedEntry.semester} — {selectedEntry.isExtension ? 'Perpanjangan' : 'Reguler'}
                 </p>
               </div>
               <div>
-                <span className="label-md uppercase text-[#475569]">Pembimbing / Promotor 1</span>
+                <span className="label-md uppercase text-[#475569]">Pembimbing</span>
                 <p className="body-base text-[#0B1C30] mt-0.5">{selectedEntry.advisor1Name}</p>
               </div>
               <div>
-                <span className="label-md uppercase text-[#475569]">Pembimbing / Promotor 2</span>
+                <span className="label-md uppercase text-[#475569]">Co-Pembimbing</span>
                 <p className="body-base text-[#0B1C30] mt-0.5">{selectedEntry.advisor2Name}</p>
               </div>
             </div>

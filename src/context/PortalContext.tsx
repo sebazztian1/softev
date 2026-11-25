@@ -2,9 +2,11 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import {
   SEED_ACCOUNTS,
   SEED_ARCHIVE,
+  SEED_BAA_ROOM_SLOTS,
   SEED_DOCTORAL_STUDENTS,
   SEED_LECTURERS,
   SEED_LECTURER_SCHEDULES,
+  SEED_MAX_QUOTAS,
   SEED_NOTIFICATIONS,
   SEED_PERIOD,
   SEED_TEMPLATES,
@@ -15,15 +17,17 @@ import {
   AcademicPeriod,
   AcademicStatus,
   ArchiveEntry,
-  CandidateDefenseSlot,
+  BaaRoomSlot,
   DefenseRubricScore,
   DefenseSchedule,
+  DoctoralPublication,
   DoctoralStage,
   DoctoralStudentRecord,
   DosenStructuralRole,
   EvaluationRecord,
   LecturerProfile,
   LecturerScheduleItem,
+  MaxQuotaSetting,
   NotificationItem,
   OfficialTemplate,
   PreviewFilePayload,
@@ -34,9 +38,8 @@ import {
   UserRole,
 } from '../types/portal';
 import { saveFileBlob } from '../utils/fileStorage';
-import { getLecturerName } from '../utils/format';
 
-const STORAGE_KEY = 'istts_portal_ta_state_v2';
+const STORAGE_KEY = 'istts_portal_ta_state_v3';
 
 interface PersistedState {
   accounts: Record<UserRole, UserAccount>;
@@ -51,6 +54,8 @@ interface PersistedState {
   templates: OfficialTemplate[];
   notifications: NotificationItem[];
   period: AcademicPeriod;
+  maxQuotas: MaxQuotaSetting[];
+  baaRoomSlots: BaaRoomSlot[];
   doctoralStudents: DoctoralStudentRecord[];
   lecturerSchedules: LecturerScheduleItem[];
 }
@@ -69,6 +74,8 @@ function buildInitialState(): PersistedState {
     templates: SEED_TEMPLATES,
     notifications: SEED_NOTIFICATIONS,
     period: SEED_PERIOD,
+    maxQuotas: SEED_MAX_QUOTAS,
+    baaRoomSlots: SEED_BAA_ROOM_SLOTS,
     doctoralStudents: SEED_DOCTORAL_STUDENTS,
     lecturerSchedules: SEED_LECTURER_SCHEDULES,
   };
@@ -93,6 +100,8 @@ function loadState(): PersistedState {
       templates: parsed.templates ?? fallback.templates,
       notifications: parsed.notifications ?? fallback.notifications,
       period: parsed.period ?? fallback.period,
+      maxQuotas: parsed.maxQuotas ?? fallback.maxQuotas,
+      baaRoomSlots: parsed.baaRoomSlots ?? fallback.baaRoomSlots,
       doctoralStudents: parsed.doctoralStudents ?? fallback.doctoralStudents,
       lecturerSchedules: parsed.lecturerSchedules ?? fallback.lecturerSchedules,
     };
@@ -108,12 +117,24 @@ export interface ToastMessage {
 }
 
 export interface ProposalUploadPayload {
+  submissionType: 'Judul Baru' | 'Perpanjangan';
   title: string;
   field: string;
+  tags: string[];
   abstract: string;
   proposedAdvisor1Id: string;
   proposedAdvisor2Id: string;
   summary: string;
+}
+
+export interface UploadReceipt {
+  title: string;
+  advisor1Name: string;
+  advisor2Name: string;
+  semester: string;
+  uploadedAt: string;
+  fileName: string;
+  fileSize: number;
 }
 
 interface PortalContextValue {
@@ -133,6 +154,8 @@ interface PortalContextValue {
   notifications: NotificationItem[];
   unreadCount: number;
   period: AcademicPeriod;
+  maxQuotas: MaxQuotaSetting[];
+  baaRoomSlots: BaaRoomSlot[];
   doctoralStudents: DoctoralStudentRecord[];
   lecturerSchedules: LecturerScheduleItem[];
   preselectedTopic: TopicRecommendation | null;
@@ -147,9 +170,9 @@ interface PortalContextValue {
   loginAsRole: (role: UserRole) => void;
   switchRole: (role: UserRole) => void;
   logout: () => void;
-  updateProfile: (updates: Pick<UserAccount, 'name' | 'email' | 'phone'>) => void;
+  updateProfile: (updates: Pick<UserAccount, 'name' | 'email'>) => void;
   toggleDosenStructuralRole: (roleKey: DosenStructuralRole) => void;
-  uploadProposal: (payload: ProposalUploadPayload, file: File) => Promise<void>;
+  uploadProposal: (payload: ProposalUploadPayload, file: File) => Promise<UploadReceipt>;
   uploadRevision: (thesisId: string, summary: string, file: File) => Promise<void>;
   submitDosenEvaluation: (
     thesisId: string,
@@ -168,14 +191,15 @@ interface PortalContextValue {
     decision: AcademicStatus,
     notes: string,
   ) => void;
-  kaprodiVerifyProposal: (
-    thesisId: string,
-    decision: AcademicStatus,
-    advisor1Id: string,
-    advisor2Id: string,
-    notes: string,
-  ) => void;
+  saveProposalReviewers: (thesisId: string, reviewerIds: string[]) => void;
+  saveTaExaminers: (thesisId: string, examinerIds: string[]) => boolean;
+  issueSkForThesis: (thesisId: string) => void;
   kaprodiScheduleDefense: (thesisId: string, schedule: DefenseSchedule) => void;
+  updateMaxQuotaSetting: (
+    department: string,
+    maxPerPeriod: number,
+    maxPerSemester: number,
+  ) => void;
   addTopicRecommendation: (
     topic: Pick<TopicRecommendation, 'title' | 'field' | 'quota' | 'description' | 'prerequisites'>,
   ) => void;
@@ -184,10 +208,8 @@ interface PortalContextValue {
     status: TopicRecommendation['status'],
     reservedByName?: string,
   ) => void;
-  toggleTopicStatus: (topicId: string) => void;
   deleteTopicRecommendation: (topicId: string) => void;
   claimTopicForProposal: (topic: TopicRecommendation) => void;
-  updateAcademicPeriod: (nextPeriod: AcademicPeriod) => void;
   reviewDoctoralLog: (
     studentId: string,
     logId: string,
@@ -195,13 +217,12 @@ interface PortalContextValue {
     promoterNote: string,
   ) => void;
   addDoctoralLogNote: (studentId: string, topic: string, progressSummary: string) => void;
+  addDoctoralPublication: (
+    studentId: string,
+    publication: Omit<DoctoralPublication, 'id'>,
+  ) => void;
   advanceDoctoralStage: (studentId: string, nextStage: DoctoralStage, notes: string) => void;
   addLecturerScheduleBlock: (item: Omit<LecturerScheduleItem, 'id'>) => void;
-  confirmDefenseSlotFromSync: (
-    thesisId: string,
-    slot: CandidateDefenseSlot,
-    examiner2Id: string,
-  ) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   resetDemoData: () => void;
@@ -371,14 +392,15 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
-  const updateProfile = (updates: Pick<UserAccount, 'name' | 'email' | 'phone'>) => {
+  const updateProfile = (updates: Pick<UserAccount, 'name' | 'email'>) => {
     if (!state.currentRole) return;
     const role = state.currentRole;
-    const parts = updates.name.trim().split(/\s+/);
+    const nextName = role === 'mahasiswa' ? state.accounts[role].name : updates.name.trim();
+    const parts = nextName.split(/\s+/);
     const initials =
       parts.length >= 2
         ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-        : updates.name.slice(0, 2).toUpperCase();
+        : nextName.slice(0, 2).toUpperCase();
 
     setState((prev) => ({
       ...prev,
@@ -386,14 +408,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...prev.accounts,
         [role]: {
           ...prev.accounts[role],
-          name: updates.name.trim(),
+          name: nextName,
           email: updates.email.trim(),
-          phone: updates.phone.trim(),
           initials,
         },
       },
     }));
-    showToast('Data profil berhasil diperbarui');
+    showToast('Perubahan profil berhasil disimpan');
   };
 
   const toggleDosenStructuralRole = (roleKey: DosenStructuralRole) => {
@@ -427,7 +448,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Konfigurasi peran struktural dosen diperbarui');
   };
 
-  const uploadProposal = async (payload: ProposalUploadPayload, file: File) => {
+  const uploadProposal = async (
+    payload: ProposalUploadPayload,
+    file: File,
+  ): Promise<UploadReceipt> => {
     const mhs = state.accounts.mahasiswa;
     const fileId = `sub-${Date.now()}`;
     await saveFileBlob(fileId, file);
@@ -437,6 +461,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ? existing.submissions.filter((s) => s.kind === 'proposal').length + 1
       : 1;
     const targetThesisId = existing ? existing.id : `ta-${Date.now()}`;
+    const uploadedAt = new Date().toISOString();
 
     const newSubmission: SubmissionFile = {
       id: fileId,
@@ -444,17 +469,23 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       versionLabel: `Proposal v${versionNum}.0`,
       fileName: file.name,
       fileSize: file.size,
-      uploadedAt: new Date().toISOString(),
+      uploadedAt,
       uploadedBy: mhs.name,
       summary: payload.summary || 'Pengajuan proposal Tugas Akhir baru.',
       hasRealBlob: true,
       pdfTitle: `PROPOSAL TUGAS AKHIR - ${mhs.name.toUpperCase()}`,
       pdfLines: [
-        `NIM: ${mhs.identifier}`,
+        `NIM/NRP: ${mhs.identifier}`,
+        `Jenis Pengajuan: ${payload.submissionType}`,
         `Judul: ${payload.title}`,
-        `Bidang: ${payload.field}`,
+        `Tag Topik: ${payload.tags.join(', ')}`,
       ],
     };
+
+    const advisor1Name =
+      state.lecturers.find((l) => l.id === payload.proposedAdvisor1Id)?.name ?? '-';
+    const advisor2Name =
+      state.lecturers.find((l) => l.id === payload.proposedAdvisor2Id)?.name ?? '-';
 
     setState((prev) => {
       let updatedTheses: ThesisRecord[];
@@ -463,14 +494,18 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           item.id === existing.id
             ? {
                 ...item,
+                submissionType: payload.submissionType,
                 title: payload.title,
                 field: payload.field,
+                tags: payload.tags,
                 abstract: payload.abstract,
+                advisor1Id: payload.proposedAdvisor1Id,
+                advisor2Id: payload.proposedAdvisor2Id,
                 proposedAdvisor1Id: payload.proposedAdvisor1Id,
                 proposedAdvisor2Id: payload.proposedAdvisor2Id,
                 stage: 'Verifikasi Kaprodi',
                 status: 'Menunggu Verifikasi',
-                updatedAt: new Date().toISOString(),
+                updatedAt: uploadedAt,
                 submissions: [newSubmission, ...item.submissions],
               }
             : item,
@@ -481,20 +516,27 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           studentId: mhs.id,
           studentName: mhs.name,
           studentNim: mhs.identifier,
+          ipk: mhs.ipk ?? 3.5,
           programStudi: mhs.department,
           semester: prev.period.semesterLabel,
+          submissionType: payload.submissionType,
           title: payload.title,
           field: payload.field,
+          tags: payload.tags,
+          sksWeight: 6,
           abstract: payload.abstract,
           stage: 'Verifikasi Kaprodi',
           status: 'Menunggu Verifikasi',
-          advisor1Id: '',
-          advisor2Id: '',
+          advisor1Id: payload.proposedAdvisor1Id,
+          advisor2Id: payload.proposedAdvisor2Id,
           proposedAdvisor1Id: payload.proposedAdvisor1Id,
           proposedAdvisor2Id: payload.proposedAdvisor2Id,
+          proposalReviewers: [],
+          taExaminers: [],
+          skIssued: false,
           submissions: [newSubmission],
           evaluations: [],
-          updatedAt: new Date().toISOString(),
+          updatedAt: uploadedAt,
         };
         updatedTheses = [created, ...prev.theses];
       }
@@ -502,15 +544,17 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       let notifs = pushNotification(
         prev.notifications,
         'kaprodi',
-        'Pengajuan Proposal Baru',
-        `${mhs.name} (${mhs.identifier}) mengunggah proposal Tugas Akhir untuk diverifikasi.`,
-        'verifikasi-proposal',
+        'Proposal Baru Siap Plotting Reviewer',
+        `${mhs.name} (${mhs.identifier}) mengunggah proposal dengan tag ${payload.tags.join(', ')}.`,
+        'plotting-reviewer',
+        'proposal',
+        targetThesisId,
       );
       notifs = pushNotification(
         notifs,
         'dosen',
         'Tugas Review Proposal Baru',
-        `${mhs.name} mengajukan proposal pada bidang ${payload.field}.`,
+        `${mhs.name} mengajukan proposal (${payload.submissionType}) pada bidang ${payload.field}.`,
         'tulis-review',
         'review-list',
         targetThesisId,
@@ -520,12 +564,21 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...prev,
         theses: updatedTheses,
         notifications: notifs,
-        activeTab: 'dashboard',
       };
     });
 
     setPreselectedTopic(null);
-    showToast('Berkas proposal berhasil diunggah dan dikirim untuk verifikasi');
+    showToast('Berkas proposal berhasil diunggah dan pemberitahuan telah dikirim');
+
+    return {
+      title: payload.title,
+      advisor1Name,
+      advisor2Name,
+      semester: state.period.semesterLabel,
+      uploadedAt,
+      fileName: file.name,
+      fileSize: file.size,
+    };
   };
 
   const uploadRevision = async (thesisId: string, summary: string, file: File) => {
@@ -564,12 +617,21 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : item,
       );
 
-      const notifs = pushNotification(
+      let notifs = pushNotification(
         prev.notifications,
         'dosen',
         `Permintaan Persetujuan Revisi (QR): ${mhs.name}`,
         `${mhs.name} (${mhs.identifier}) mengunggah ${newSub.versionLabel} dengan token QR ${qrToken}.`,
         'tulis-review',
+        'qr-approval',
+        thesisId,
+      );
+      notifs = pushNotification(
+        notifs,
+        'kaprodi',
+        `Revisi Siap Verifikasi QR: ${mhs.name}`,
+        `${mhs.name} mengunggah berkas revisi dengan token QR ${qrToken}.`,
+        'plotting-reviewer',
         'qr-approval',
         thesisId,
       );
@@ -654,23 +716,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : item,
       );
 
-      let notifs = pushNotification(
+      const notifs = pushNotification(
         prev.notifications,
         'mahasiswa',
         `Pembaruan Evaluasi: ${decision}`,
         `${dosen.name} memberikan status "${decision}" pada berkas Anda.`,
         decision === 'Perlu Revisi' ? 'upload-revisi' : 'hasil-sidang',
       );
-
-      if (decision === 'Diterima') {
-        notifs = pushNotification(
-          notifs,
-          'kaprodi',
-          'Revisi Proposal Disetujui Pembimbing',
-          `${target.studentName} (${target.studentNim}) telah mendapat persetujuan dosen.`,
-          'monitoring-ta',
-        );
-      }
 
       return {
         ...prev,
@@ -698,15 +750,21 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
 
-    const dosen = state.accounts.dosen;
+    const actor = currentUser ?? state.accounts.dosen;
     const statusFinal: AcademicStatus = decision === 'Diterima' ? 'Diterima' : 'Perlu Revisi';
+    const evaluatorRole =
+      actor.role === 'kaprodi'
+        ? 'Kaprodi'
+        : target.advisor1Id === actor.id
+          ? 'Pembimbing 1'
+          : 'Penguji 1';
 
     setState((prev) => {
       const evalRecord: EvaluationRecord = {
         id: `eval-qr-${Date.now()}`,
-        evaluatorId: dosen.id,
-        evaluatorName: dosen.name,
-        evaluatorRole: target.advisor1Id === dosen.id ? 'Pembimbing 1' : 'Penguji 1',
+        evaluatorId: actor.id,
+        evaluatorName: actor.name,
+        evaluatorRole,
         stage: 'Revisi Proposal',
         status: statusFinal,
         notes: `${notes} (Verifikasi QR: ${target.revisionQrToken ?? target.id})`,
@@ -732,7 +790,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         prev.notifications,
         'mahasiswa',
         `Verifikasi QR Revisi: ${decision === 'Diterima' ? 'Disetujui' : 'Ditolak'}`,
-        `${dosen.name} memverifikasi revisi melalui QR Code dengan status "${statusFinal}".`,
+        `${actor.name} memverifikasi revisi melalui QR Code dengan status "${statusFinal}".`,
         decision === 'Diterima' ? 'hasil-sidang' : 'upload-revisi',
       );
 
@@ -810,19 +868,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : item,
       );
 
-      let notifs = pushNotification(
+      const notifs = pushNotification(
         prev.notifications,
         'mahasiswa',
         'Hasil Sidang Proposal Telah Dirilis',
         `Nilai sidang: ${totalScore} (${grade}) dengan keputusan "${decision}".`,
         'hasil-sidang',
-      );
-      notifs = pushNotification(
-        notifs,
-        'kaprodi',
-        'Hasil Sidang Proposal Diinput',
-        `${dosen.name} menginput hasil sidang untuk ${target.studentName} (${decision}).`,
-        'monitoring-ta',
       );
 
       return {
@@ -835,63 +886,38 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast(`Hasil sidang proposal (${decision} — ${totalScore}) berhasil disimpan`);
   };
 
-  const kaprodiVerifyProposal = (
-    thesisId: string,
-    decision: AcademicStatus,
-    advisor1Id: string,
-    advisor2Id: string,
-    notes: string,
-  ) => {
-    const kaprodi = state.accounts.kaprodi;
+  const saveProposalReviewers = (thesisId: string, reviewerIds: string[]) => {
+    const capped = reviewerIds.slice(0, 4);
     setState((prev) => {
       const target = prev.theses.find((t) => t.id === thesisId);
       if (!target) return prev;
-
-      const evalRecord: EvaluationRecord = {
-        id: `eval-kap-${Date.now()}`,
-        evaluatorId: kaprodi.id,
-        evaluatorName: kaprodi.name,
-        evaluatorRole: 'Kaprodi',
-        stage: 'Verifikasi Kaprodi',
-        status: decision,
-        notes,
-        evaluatedAt: new Date().toISOString(),
-      };
-
       const updatedTheses = prev.theses.map((item) =>
         item.id === thesisId
           ? {
               ...item,
-              status: decision,
-              stage: 'Verifikasi Kaprodi' as const,
-              advisor1Id: advisor1Id || item.advisor1Id,
-              advisor2Id: advisor2Id || item.advisor2Id,
+              proposalReviewers: capped,
+              status: 'Diterima' as const,
               updatedAt: new Date().toISOString(),
-              evaluations: [evalRecord, ...item.evaluations],
             }
           : item,
       );
 
       let notifs = pushNotification(
         prev.notifications,
+        'dosen',
+        `Penugasan Reviewer Proposal: ${target.studentName}`,
+        `Kaprodi menetapkan Anda pada tim reviewer proposal (${capped.length} dosen).`,
+        'tulis-review',
+        'review-list',
+        thesisId,
+      );
+      notifs = pushNotification(
+        notifs,
         'mahasiswa',
-        `Verifikasi Proposal oleh Kaprodi: ${decision}`,
-        notes,
+        'Tim Reviewer Proposal Telah Ditetapkan',
+        `Proposal Anda telah di-plot kepada ${capped.length} dosen reviewer dan siap dijadwalkan sidang.`,
         'dashboard',
       );
-
-      if (decision === 'Diterima') {
-        const adv1Name = getLecturerName(prev.lecturers, advisor1Id);
-        notifs = pushNotification(
-          notifs,
-          'dosen',
-          'Penugasan Dosen Pembimbing',
-          `Anda ditetapkan pada pembimbingan Tugas Akhir ${target.studentName} (${adv1Name}).`,
-          'tulis-review',
-          'review-list',
-          target.id,
-        );
-      }
 
       return {
         ...prev,
@@ -899,8 +925,54 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         notifications: notifs,
       };
     });
+    showToast('Plotting reviewer proposal berhasil disimpan');
+  };
 
-    showToast(`Keputusan verifikasi Kaprodi (${decision}) berhasil disimpan`);
+  const saveTaExaminers = (thesisId: string, examinerIds: string[]): boolean => {
+    const target = state.theses.find((t) => t.id === thesisId);
+    if (!target) return false;
+
+    const capped = examinerIds.slice(0, 4);
+    if (target.proposalReviewers.length >= 2) {
+      const overlapCount = capped.filter((id) =>
+        target.proposalReviewers.includes(id),
+      ).length;
+      if (overlapCount < 2) {
+        showToast(
+          'Minimal 2 dosen penguji TA wajib berasal dari tim reviewer proposal mahasiswa ini.',
+          'error',
+        );
+        return false;
+      }
+    }
+
+    setState((prev) => ({
+      ...prev,
+      theses: prev.theses.map((item) =>
+        item.id === thesisId
+          ? { ...item, taExaminers: capped, updatedAt: new Date().toISOString() }
+          : item,
+      ),
+      notifications: pushNotification(
+        prev.notifications,
+        'dosen',
+        `Penugasan Penguji Sidang TA: ${target.studentName}`,
+        `Kaprodi menetapkan ${capped.length} dosen penguji TA (minimal 2 dari reviewer proposal).`,
+        'sidang-proposal',
+      ),
+    }));
+    showToast('Plotting penguji Tugas Akhir berhasil disimpan');
+    return true;
+  };
+
+  const issueSkForThesis = (thesisId: string) => {
+    setState((prev) => ({
+      ...prev,
+      theses: prev.theses.map((t) =>
+        t.id === thesisId ? { ...t, skIssued: true, updatedAt: new Date().toISOString() } : t,
+      ),
+    }));
+    showToast('Status penerbitan SK Tugas Akhir diperbarui');
   };
 
   const kaprodiScheduleDefense = (thesisId: string, schedule: DefenseSchedule) => {
@@ -920,6 +992,30 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : item,
       );
 
+      const [startTime = '09:00', endPart = '10:00 WIB'] = schedule.time.split(' - ');
+      const endTime = endPart.replace(' WIB', '').trim();
+      const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const parsedDate = new Date(schedule.date);
+      const dayOfWeek = Number.isNaN(parsedDate.getTime())
+        ? 'Terjadwal'
+        : dayNames[parsedDate.getDay()];
+
+      const newCalendarEntry: LecturerScheduleItem = {
+        id: `sch-def-${Date.now()}`,
+        dayOfWeek,
+        date: schedule.date,
+        startTime: startTime.trim(),
+        endTime,
+        title: `Sidang Proposal: ${target.studentName} (${target.studentNim})`,
+        category: 'Sidang Terkonfirmasi',
+        room: schedule.room,
+        thesisId: target.id,
+      };
+
+      const filteredSchedules = prev.lecturerSchedules.filter(
+        (s) => !(s.category === 'Sidang Terkonfirmasi' && s.thesisId === target.id),
+      );
+
       let notifs = pushNotification(
         prev.notifications,
         'mahasiswa',
@@ -930,8 +1026,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       notifs = pushNotification(
         notifs,
         'dosen',
-        `Penjadwalan Penguji Sidang: ${target.studentName}`,
-        `Jadwal sidang ${schedule.date} pukul ${schedule.time} di ${schedule.room}.`,
+        `Jadwal Sidang Terkonfirmasi: ${target.studentName}`,
+        `Slot bebas bentrok pada ${schedule.date} pukul ${schedule.time} di ${schedule.room} telah masuk ke kalender Anda.`,
         'sidang-proposal',
         'input-hasil',
         target.id,
@@ -940,11 +1036,30 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return {
         ...prev,
         theses: updatedTheses,
+        lecturerSchedules: [...filteredSchedules, newCalendarEntry],
         notifications: notifs,
       };
     });
 
-    showToast('Jadwal Sidang Proposal berhasil disimpan');
+    showToast('Jadwal Sidang Proposal bebas bentrok diterbitkan dan disinkronkan ke kalender');
+  };
+
+  const updateMaxQuotaSetting = (
+    department: string,
+    maxPerPeriod: number,
+    maxPerSemester: number,
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      maxQuotas: prev.maxQuotas.map((q) =>
+        q.department === department ? { ...q, maxPerPeriod, maxPerSemester } : q,
+      ),
+      lecturers:
+        department === 'S1 Informatika'
+          ? prev.lecturers.map((l) => ({ ...l, maxQuota: maxPerPeriod }))
+          : prev.lecturers,
+    }));
+    showToast(`Batas maksimum bimbingan ${department} berhasil disimpan`);
   };
 
   const addTopicRecommendation = (
@@ -1002,21 +1117,6 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast(`Status topik diperbarui menjadi ${status}`);
   };
 
-  const toggleTopicStatus = (topicId: string) => {
-    setState((prev) => ({
-      ...prev,
-      topics: prev.topics.map((t) =>
-        t.id === topicId
-          ? {
-              ...t,
-              status: t.status === 'Tersedia' ? 'Reserved' : t.status === 'Reserved' ? 'Penuh' : 'Tersedia',
-            }
-          : t,
-      ),
-    }));
-    showToast('Status ketersediaan topik diperbarui');
-  };
-
   const deleteTopicRecommendation = (topicId: string) => {
     setState((prev) => ({
       ...prev,
@@ -1051,20 +1151,6 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
     setPreselectedTopic(topic);
     showToast('Topik berstatus Reserved dan diisikan ke formulir Upload Proposal');
-  };
-
-  const updateAcademicPeriod = (nextPeriod: AcademicPeriod) => {
-    setState((prev) => ({
-      ...prev,
-      period: nextPeriod,
-      lecturers: prev.lecturers.map((l) => ({ ...l, maxQuota: nextPeriod.maxAdvisorQuota })),
-      theses: prev.theses.map((t) =>
-        t.stage === 'Revisi Proposal'
-          ? { ...t, revisionDeadline: nextPeriod.revisionDeadline }
-          : t,
-      ),
-    }));
-    showToast('Pengaturan periode akademik berhasil disimpan');
   };
 
   const reviewDoctoralLog = (
@@ -1105,7 +1191,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   topic,
                   progressSummary,
                   status: 'Disetujui',
-                  promoterNote: 'Dicatat langsung oleh Promotor / Ko-Promotor.',
+                  promoterNote: 'Dicatat oleh Promotor / Ko-Promotor.',
                 },
                 ...s.logBooks,
               ],
@@ -1114,6 +1200,28 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ),
     }));
     showToast('Entri log book bimbingan S3 berhasil ditambahkan');
+  };
+
+  const addDoctoralPublication = (
+    studentId: string,
+    publication: Omit<DoctoralPublication, 'id'>,
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      doctoralStudents: prev.doctoralStudents.map((s) =>
+        s.id === studentId
+          ? {
+              ...s,
+              updatedAt: new Date().toISOString(),
+              publications: [
+                { ...publication, id: `pub-s3-${Date.now()}` },
+                ...s.publications,
+              ],
+            }
+          : s,
+      ),
+    }));
+    showToast('Luaran publikasi ilmiah S3 berhasil ditambahkan');
   };
 
   const advanceDoctoralStage = (studentId: string, nextStage: DoctoralStage, notes: string) => {
@@ -1153,73 +1261,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...prev,
       lecturerSchedules: [...prev.lecturerSchedules, newItem],
     }));
-    showToast('Jadwal baru ditambahkan ke kalender dosen');
-  };
-
-  const confirmDefenseSlotFromSync = (
-    thesisId: string,
-    slot: CandidateDefenseSlot,
-    examiner2Id: string,
-  ) => {
-    const dosen = state.accounts.dosen;
-    setState((prev) => {
-      const target = prev.theses.find((t) => t.id === thesisId);
-      if (!target) return prev;
-
-      const timeRange = `${slot.startTime} - ${slot.endTime} WIB`;
-      const updatedTheses = prev.theses.map((item) =>
-        item.id === thesisId
-          ? {
-              ...item,
-              stage: 'Sidang Proposal' as const,
-              status: 'Menunggu Verifikasi' as const,
-              defenseSchedule: {
-                date: slot.date,
-                time: timeRange,
-                room: slot.room,
-                examiner1Id: dosen.id,
-                examiner2Id,
-              },
-              updatedAt: new Date().toISOString(),
-            }
-          : item,
-      );
-
-      const newAgendaItem: LecturerScheduleItem = {
-        id: `sch-def-${Date.now()}`,
-        dayOfWeek: slot.dayOfWeek,
-        date: slot.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        title: `Sidang Proposal: ${target.studentName} (${target.studentNim})`,
-        category: 'Sidang Terkonfirmasi',
-        room: slot.room,
-        thesisId: target.id,
-      };
-
-      let notifs = pushNotification(
-        prev.notifications,
-        'mahasiswa',
-        'Jadwal Sidang Proposal Ditetapkan',
-        `Sidang Anda dijadwalkan pada ${slot.dayOfWeek}, ${slot.date} pukul ${timeRange} di ${slot.room}.`,
-        'dashboard',
-      );
-      notifs = pushNotification(
-        notifs,
-        'kaprodi',
-        'Sinkronisasi Jadwal Sidang Terkonfirmasi',
-        `${dosen.name} mengonfirmasi slot bebas bentrok untuk ${target.studentName} (${slot.date} ${slot.startTime}).`,
-        'penjadwalan-sidang',
-      );
-
-      return {
-        ...prev,
-        theses: updatedTheses,
-        lecturerSchedules: [...prev.lecturerSchedules, newAgendaItem],
-        notifications: notifs,
-      };
-    });
-    showToast('Slot sidang bebas bentrok berhasil dikonfirmasi ke agenda kalender');
+    showToast('Jadwal ketersediaan dosen berhasil diperbarui');
   };
 
   const markNotificationRead = (id: string) => {
@@ -1262,6 +1304,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notifications: roleNotifications,
     unreadCount,
     period: state.period,
+    maxQuotas: state.maxQuotas,
+    baaRoomSlots: state.baaRoomSlots,
     doctoralStudents: state.doctoralStudents,
     lecturerSchedules: state.lecturerSchedules,
     preselectedTopic,
@@ -1283,19 +1327,20 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     submitDosenEvaluation,
     approveRevisionByQr,
     submitDefenseScore,
-    kaprodiVerifyProposal,
+    saveProposalReviewers,
+    saveTaExaminers,
+    issueSkForThesis,
     kaprodiScheduleDefense,
+    updateMaxQuotaSetting,
     addTopicRecommendation,
     setTopicStatus,
-    toggleTopicStatus,
     deleteTopicRecommendation,
     claimTopicForProposal,
-    updateAcademicPeriod,
     reviewDoctoralLog,
     addDoctoralLogNote,
+    addDoctoralPublication,
     advanceDoctoralStage,
     addLecturerScheduleBlock,
-    confirmDefenseSlotFromSync,
     markNotificationRead,
     markAllNotificationsRead,
     resetDemoData,

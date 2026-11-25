@@ -23,20 +23,21 @@ export type ThesisStage =
 export type DoctoralStage =
   | 'Ujian Kualifikasi'
   | 'Proposal Disertasi'
-  | 'Seminar Hasil Riset'
-  | 'Ujian Tertutup'
-  | 'Sidang Terbuka';
+  | 'Ujian Kelayakan'
+  | 'Sidang Tertutup'
+  | 'Promosi Terbuka';
 
 export interface UserAccount {
   id: string;
   role: UserRole;
   username: string;
   name: string;
-  identifier: string; // NIM for mahasiswa, NIDN for dosen/kaprodi
+  identifier: string; // NRP/NIM for mahasiswa, NIDN for dosen/kaprodi
   department: string;
   email: string;
   phone: string;
   initials: string;
+  ipk?: number;
   structuralRoles?: DosenStructuralRole[];
 }
 
@@ -45,6 +46,7 @@ export interface LecturerProfile {
   name: string;
   nidn: string;
   expertise: string;
+  tags: string[];
   maxQuota: number;
 }
 
@@ -67,10 +69,18 @@ export interface EvaluationRecord {
   id: string;
   evaluatorId: string;
   evaluatorName: string;
-  evaluatorRole: 'Pembimbing 1' | 'Pembimbing 2' | 'Penguji 1' | 'Penguji 2' | 'Kaprodi';
+  evaluatorRole:
+    | 'Pembimbing 1'
+    | 'Pembimbing 2'
+    | 'Penguji 1'
+    | 'Penguji 2'
+    | 'Penguji 3'
+    | 'Penguji 4'
+    | 'Kaprodi';
   stage: ThesisStage;
   status: AcademicStatus;
   notes: string;
+  requirements?: string[];
   evaluatedAt: string;
   score?: number;
   correctionFile?: SubmissionFile;
@@ -98,10 +108,15 @@ export interface ThesisRecord {
   studentId: string;
   studentName: string;
   studentNim: string;
+  ipk: number;
   programStudi: string;
   semester: string;
+  submissionType: 'Judul Baru' | 'Perpanjangan';
   title: string;
+  newTitle?: string;
   field: string;
+  tags: string[];
+  sksWeight: number;
   abstract: string;
   stage: ThesisStage;
   status: AcademicStatus;
@@ -109,6 +124,9 @@ export interface ThesisRecord {
   advisor2Id: string;
   proposedAdvisor1Id?: string;
   proposedAdvisor2Id?: string;
+  proposalReviewers: string[]; // max 4
+  taExaminers: string[]; // max 4, min 2 from proposalReviewers
+  skIssued?: boolean;
   revisionQrToken?: string;
   submissions: SubmissionFile[];
   evaluations: EvaluationRecord[];
@@ -139,8 +157,12 @@ export interface ArchiveEntry {
   title: string;
   studentName: string;
   studentNim: string;
+  ipk: number;
   year: number;
+  semester: string;
+  isExtension: boolean;
   field: string;
+  tags: string[];
   type: 'Proposal TA' | 'Laporan TA' | 'Tesis S2' | 'Disertasi S3';
   advisor1Name: string;
   advisor2Name: string;
@@ -178,6 +200,22 @@ export interface AcademicPeriod {
   defenseWindow: string;
   revisionDeadline: string;
   maxAdvisorQuota: number;
+  managedBy: string;
+}
+
+export interface MaxQuotaSetting {
+  department: string;
+  maxPerPeriod: number;
+  maxPerSemester: number;
+}
+
+export interface BaaRoomSlot {
+  id: string;
+  date: string; // YYYY-MM-DD
+  dayOfWeek: string;
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  room: string;
 }
 
 export interface PreviewFilePayload {
@@ -199,6 +237,15 @@ export interface DoctoralLogEntry {
   promoterNote?: string;
 }
 
+export interface DoctoralPublication {
+  id: string;
+  title: string;
+  journal: string;
+  indexType: 'Scopus Q1' | 'Scopus Q2' | 'WoS';
+  status: 'Published' | 'Accepted' | 'Under Review';
+  year: number;
+}
+
 export interface DoctoralStudentRecord {
   id: string;
   name: string;
@@ -207,9 +254,11 @@ export interface DoctoralStudentRecord {
   dissertationTitle: string;
   lecturerRole: 'Promotor' | 'Ko-Promotor';
   partnerName: string;
+  externalExaminer: string;
   currentStage: DoctoralStage;
   stageStatus: AcademicStatus;
   logBooks: DoctoralLogEntry[];
+  publications: DoctoralPublication[];
   updatedAt: string;
 }
 
@@ -223,13 +272,4 @@ export interface LecturerScheduleItem {
   category: 'Mengajar' | 'Bimbingan' | 'Sidang Terkonfirmasi';
   room: string;
   thesisId?: string;
-}
-
-export interface CandidateDefenseSlot {
-  id: string;
-  date: string; // YYYY-MM-DD
-  dayOfWeek: string;
-  startTime: string; // HH:mm
-  endTime: string; // HH:mm
-  room: string;
 }

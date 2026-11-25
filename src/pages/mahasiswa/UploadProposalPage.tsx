@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { FileDropzone } from '../../components/ui/FileDropzone';
-import { usePortal } from '../../context/PortalContext';
-import { formatDateId } from '../../utils/format';
+import { UploadReceipt, usePortal } from '../../context/PortalContext';
+import { AVAILABLE_TAGS } from '../../data/seedData';
+import { downloadPdfPayload, formatDateId, formatDateTimeId, formatFileSize } from '../../utils/format';
 
 const BIDANG_MINAT = [
   'Computer Vision & Embedded AI',
@@ -22,18 +23,21 @@ export const UploadProposalPage: React.FC = () => {
     preselectedTopic,
     setPreselectedTopic,
     uploadProposal,
-    openFilePreview,
     showToast,
   } = usePortal();
 
+  const [submissionType, setSubmissionType] = useState<'Judul Baru' | 'Perpanjangan'>('Judul Baru');
   const [title, setTitle] = useState('');
   const [field, setField] = useState(BIDANG_MINAT[0]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(['Computer Vision', 'Deep Learning']);
   const [advisor1, setAdvisor1] = useState(lecturers[0]?.id ?? '');
   const [advisor2, setAdvisor2] = useState(lecturers[1]?.id ?? '');
   const [abstract, setAbstract] = useState('');
   const [summary, setSummary] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState<UploadReceipt | null>(null);
 
   useEffect(() => {
     if (preselectedTopic) {
@@ -46,26 +50,42 @@ export const UploadProposalPage: React.FC = () => {
     }
   }, [preselectedTopic]);
 
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !abstract.trim()) {
       showToast('Judul proposal dan abstrak wajib diisi.', 'error');
       return;
     }
+    if (selectedTags.length === 0) {
+      showToast('Pilih minimal satu tag topik proposal.', 'error');
+      return;
+    }
     if (!file) {
       showToast('Unggah berkas proposal dalam format .PDF terlebih dahulu.', 'error');
       return;
     }
+    if (!confirmed) {
+      showToast('Centang kotak konfirmasi kebenaran berkas sebelum melanjutkan.', 'error');
+      return;
+    }
     if (advisor1 && advisor2 && advisor1 === advisor2) {
-      showToast('Dosen Pembimbing 1 dan Pembimbing 2 harus berbeda.', 'error');
+      showToast('Dosen Pembimbing dan Co-Pembimbing harus berbeda.', 'error');
       return;
     }
     setSubmitting(true);
     try {
-      await uploadProposal(
+      const result = await uploadProposal(
         {
+          submissionType,
           title: title.trim(),
           field,
+          tags: selectedTags,
           abstract: abstract.trim(),
           proposedAdvisor1Id: advisor1,
           proposedAdvisor2Id: advisor2,
@@ -73,7 +93,9 @@ export const UploadProposalPage: React.FC = () => {
         },
         file,
       );
+      setReceipt(result);
       setFile(null);
+      setConfirmed(false);
     } finally {
       setSubmitting(false);
     }
@@ -81,14 +103,48 @@ export const UploadProposalPage: React.FC = () => {
 
   const mainTemplate = templates[0];
 
+  const handleDownloadForm = () => {
+    if (!mainTemplate) return;
+    void downloadPdfPayload({
+      id: mainTemplate.id,
+      fileName: mainTemplate.fileName,
+      title: mainTemplate.title,
+      subtitle: `${mainTemplate.category} — ${mainTemplate.version}`,
+      lines: mainTemplate.pdfLines,
+      hasRealBlob: false,
+    });
+    showToast(`Mengunduh ${mainTemplate.fileName}`);
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="headline-lg text-[#0B1C30]">Upload Proposal</h1>
-        <p className="body-base text-[#475569] mt-1">
-          {period.semesterLabel} — Batas akhir pengajuan: {formatDateId(period.proposalDeadline)}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="headline-lg text-[#0B1C30]">Upload Proposal</h1>
+          <p className="body-base text-[#475569] mt-1">
+            {period.semesterLabel} — Batas akhir pengajuan: {formatDateId(period.proposalDeadline)}
+          </p>
+        </div>
+
+        {mainTemplate && (
+          <button
+            type="button"
+            onClick={handleDownloadForm}
+            className="btn-secondary shrink-0"
+          >
+            <Download className="w-4 h-4 stroke-[1.5]" />
+            Download Formulir Proposal TA
+          </button>
+        )}
       </div>
+
+      {receipt && (
+        <AlertBanner
+          variant="info"
+          title="Proposal Berhasil Diunggah dan Notifikasi Email Telah Dikirim"
+          description={`Judul: ${receipt.title} | Pembimbing: ${receipt.advisor1Name} & ${receipt.advisor2Name} | Periode: ${receipt.semester} | Waktu: ${formatDateTimeId(receipt.uploadedAt)} | File: ${receipt.fileName} (${formatFileSize(receipt.fileSize)}).`}
+        />
+      )}
 
       {preselectedTopic && (
         <AlertBanner
@@ -107,11 +163,15 @@ export const UploadProposalPage: React.FC = () => {
         />
       )}
 
-      <AlertBanner
-        variant="info"
-        title="Ketentuan Format Berkas Proposal"
-        description="Unggah satu berkas PDF utuh mencakup halaman pengesahan, abstrak, Bab 1 sampai Bab 3, dan daftar pustaka dengan ukuran maksimal 20 MB."
-      />
+      {submissionType === 'Perpanjangan' && (
+        <div className="rounded-xl border border-[#FCA5A5] bg-[#FEE2E2] px-4 py-3.5 text-[#991B1B]">
+          <p className="body-semibold">Peringatan Pengajuan Perpanjangan</p>
+          <p className="body-base mt-0.5">
+            Jika memilih opsi Perpanjangan, data judul dan dosen pembimbing tidak dapat diubah
+            kembali setelah dikirimkan.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Form Card (8 cols) */}
@@ -123,22 +183,24 @@ export const UploadProposalPage: React.FC = () => {
             Formulir Pengajuan Proposal Tugas Akhir
           </h2>
 
-          <div>
-            <label htmlFor="prop-title" className="block label-md text-[#0B1C30] mb-1.5">
-              Judul Tugas Akhir
-            </label>
-            <input
-              id="prop-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Tuliskan judul lengkap proposal Tugas Akhir dalam Bahasa Indonesia"
-              className="input-field"
-              required
-            />
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="prop-type" className="block label-md text-[#0B1C30] mb-1.5">
+                Jenis Pengajuan
+              </label>
+              <select
+                id="prop-type"
+                value={submissionType}
+                onChange={(e) =>
+                  setSubmissionType(e.target.value as 'Judul Baru' | 'Perpanjangan')
+                }
+                className="input-field"
+              >
+                <option value="Judul Baru">Judul Baru</option>
+                <option value="Perpanjangan">Perpanjangan</option>
+              </select>
+            </div>
+
             <div>
               <label htmlFor="prop-field" className="block label-md text-[#0B1C30] mb-1.5">
                 Bidang Minat
@@ -156,26 +218,52 @@ export const UploadProposalPage: React.FC = () => {
                 ))}
               </select>
             </div>
+          </div>
 
-            <div>
-              <label htmlFor="prop-summary" className="block label-md text-[#0B1C30] mb-1.5">
-                Keterangan Pengajuan
-              </label>
-              <input
-                id="prop-summary"
-                type="text"
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder="Contoh: Pengajuan proposal perdana Bab 1-3"
-                className="input-field"
-              />
+          <div>
+            <label htmlFor="prop-title" className="block label-md text-[#0B1C30] mb-1.5">
+              Judul Tugas Akhir
+            </label>
+            <input
+              id="prop-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Tuliskan judul lengkap proposal Tugas Akhir dalam Bahasa Indonesia"
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div>
+            <span className="block label-md text-[#0B1C30] mb-2">
+              Tag Topik Proposal (Digunakan Sistem Rekomendasi Reviewer)
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {AVAILABLE_TAGS.map((tag) => {
+                const active = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={`rounded-full px-3 py-1.5 label-md border transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[#0F2A66] text-white border-[#0F2A66]'
+                        : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="prop-adv1" className="block label-md text-[#0B1C30] mb-1.5">
-                Usulan Dosen Pembimbing 1
+                Dosen Pembimbing
               </label>
               <select
                 id="prop-adv1"
@@ -193,7 +281,7 @@ export const UploadProposalPage: React.FC = () => {
 
             <div>
               <label htmlFor="prop-adv2" className="block label-md text-[#0B1C30] mb-1.5">
-                Usulan Dosen Pembimbing 2
+                Co-Pembimbing
               </label>
               <select
                 id="prop-adv2"
@@ -226,7 +314,23 @@ export const UploadProposalPage: React.FC = () => {
           </div>
 
           <div>
-            <span className="block label-md text-[#0B1C30] mb-1.5">Berkas Proposal (.PDF)</span>
+            <label htmlFor="prop-summary" className="block label-md text-[#0B1C30] mb-1.5">
+              Keterangan Pengajuan
+            </label>
+            <input
+              id="prop-summary"
+              type="text"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Contoh: Pengajuan proposal perdana Bab 1-3"
+              className="input-field"
+            />
+          </div>
+
+          <div>
+            <span className="block label-md text-[#0B1C30] mb-1.5">
+              Berkas Formulir &amp; Isi Proposal (.PDF)
+            </span>
             <FileDropzone
               file={file}
               onFileSelect={setFile}
@@ -235,9 +339,22 @@ export const UploadProposalPage: React.FC = () => {
             />
           </div>
 
+          <label className="flex items-start gap-2.5 pt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-[#0F2A66]"
+            />
+            <span className="body-base text-[#0B1C30]">
+              Saya menyatakan berkas formulir dan naskah proposal yang diunggah sudah benar serta
+              telah disetujui dosen pembimbing.
+            </span>
+          </label>
+
           <div className="flex justify-end pt-4 border-t border-[#E2E8F0]">
             <button type="submit" disabled={submitting} className="btn-primary">
-              {submitting ? 'Mengunggah Berkas...' : 'Unggah Proposal'}
+              {submitting ? 'Mengunggah Berkas...' : 'Submit dan Lanjutkan'}
             </button>
           </div>
         </form>
@@ -252,14 +369,15 @@ export const UploadProposalPage: React.FC = () => {
               <li className="py-3 body-base text-[#0B1C30]">
                 Format penamaan file yang disarankan:
                 <span className="block code-meta text-[#475569] mt-1">
-                  NIM_NamaLengkap_Proposal_TA.pdf
+                  NRP_NamaLengkap_Proposal_TA.pdf
                 </span>
               </li>
               <li className="py-3 body-base text-[#0B1C30]">
                 Ukuran berkas maksimal 20 MB dan tidak terkunci kata sandi.
               </li>
               <li className="py-3 body-base text-[#0B1C30]">
-                Penetapan akhir Dosen Pembimbing disahkan oleh Ketua Program Studi.
+                Setelah diunggah, sistem otomatis merekomendasikan tim reviewer berdasarkan tag
+                proposal kepada Kaprodi.
               </li>
             </ul>
 
@@ -267,20 +385,11 @@ export const UploadProposalPage: React.FC = () => {
               <div className="pt-4 border-t border-[#E2E8F0]">
                 <button
                   type="button"
-                  onClick={() =>
-                    openFilePreview({
-                      id: mainTemplate.id,
-                      fileName: mainTemplate.fileName,
-                      title: mainTemplate.title,
-                      subtitle: `${mainTemplate.category} — ${mainTemplate.version}`,
-                      lines: mainTemplate.pdfLines,
-                      hasRealBlob: false,
-                    })
-                  }
+                  onClick={handleDownloadForm}
                   className="btn-secondary w-full"
                 >
                   <Download className="w-4 h-4 stroke-[1.5]" />
-                  Unduh Template Proposal
+                  Download Formulir Proposal TA
                 </button>
               </div>
             )}

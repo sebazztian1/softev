@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarCheck, Download, Plus, RefreshCw } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
-import { CANDIDATE_DEFENSE_SLOTS } from '../../data/seedData';
-import { CandidateDefenseSlot } from '../../types/portal';
 import { formatDateId } from '../../utils/format';
 
 function toMinutes(hhmm: string): number {
@@ -24,36 +22,9 @@ function isTimeOverlap(
 }
 
 export const SinkronisasiJadwalPage: React.FC = () => {
-  const {
-    currentUser,
-    theses,
-    lecturers,
-    lecturerSchedules,
-    addLecturerScheduleBlock,
-    confirmDefenseSlotFromSync,
-    showToast,
-  } = usePortal();
-
-  const schedulableTheses = useMemo(
-    () =>
-      theses.filter(
-        (t) =>
-          (t.stage === 'Verifikasi Kaprodi' || t.stage === 'Sidang Proposal') &&
-          t.status !== 'Ditolak',
-      ),
-    [theses],
-  );
-
-  const [selectedThesisId, setSelectedThesisId] = useState<string>(
-    schedulableTheses[0]?.id ?? '',
-  );
-  const [examiner2Id, setExaminer2Id] = useState<string>(
-    lecturers.find((l) => l.id !== currentUser?.id)?.id ?? lecturers[0]?.id ?? '',
-  );
-  const [hasScanned, setHasScanned] = useState(true);
+  const { baaRoomSlots, lecturerSchedules, addLecturerScheduleBlock, showToast } = usePortal();
   const [addModalOpen, setAddModalOpen] = useState(false);
 
-  // Add busy block form
   const [newDate, setNewDate] = useState('2026-12-01');
   const [newDay, setNewDay] = useState('Selasa');
   const [newStart, setNewStart] = useState('13:00');
@@ -63,7 +34,7 @@ export const SinkronisasiJadwalPage: React.FC = () => {
   const [newRoom, setNewRoom] = useState('Ruang Kuliah B-201');
 
   const scannedSlots = useMemo(() => {
-    return CANDIDATE_DEFENSE_SLOTS.map((slot) => {
+    return baaRoomSlots.map((slot) => {
       const conflict = lecturerSchedules.find(
         (item) =>
           item.date === slot.date &&
@@ -75,7 +46,7 @@ export const SinkronisasiJadwalPage: React.FC = () => {
         isFree: !conflict,
       };
     });
-  }, [lecturerSchedules]);
+  }, [baaRoomSlots, lecturerSchedules]);
 
   const sortedAgenda = useMemo(
     () =>
@@ -86,20 +57,6 @@ export const SinkronisasiJadwalPage: React.FC = () => {
   );
 
   const freeCount = scannedSlots.filter((s) => s.isFree).length;
-
-  const handleScan = () => {
-    setHasScanned(true);
-    showToast(`Pemindaian selesai: ditemukan ${freeCount} slot sidang bebas bentrok`);
-  };
-
-  const handleConfirmSlot = (slot: CandidateDefenseSlot) => {
-    const targetId = selectedThesisId || schedulableTheses[0]?.id;
-    if (!targetId) {
-      showToast('Tidak ada mahasiswa yang siap dijadwalkan.', 'error');
-      return;
-    }
-    confirmDefenseSlotFromSync(targetId, slot, examiner2Id);
-  };
 
   const handleAddBusyBlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,177 +116,111 @@ export const SinkronisasiJadwalPage: React.FC = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="headline-lg text-[#0B1C30]">Sinkronisasi Jadwal Sidang Otomatis</h1>
+          <h1 className="headline-lg text-[#0B1C30]">Kalender &amp; Ketersediaan Jadwal Dosen</h1>
           <p className="body-base text-[#475569] mt-1">
-            Pemindaian jadwal mengajar dan bimbingan untuk penentuan slot sidang bebas bentrok
+            Pemindaian ketersediaan mengajar dan bimbingan terhadap alokasi ruang sidang BAA serta
+            agenda sidang terkonfirmasi dari Kaprodi
           </p>
         </div>
 
-        <button type="button" onClick={handleScan} className="btn-primary shrink-0">
-          <RefreshCw className="w-4 h-4 stroke-[1.75]" />
-          Pindai Slot Bebas Bentrok
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          className="btn-primary shrink-0"
+        >
+          <Plus className="w-4 h-4 stroke-[1.75]" />
+          Tambah Jadwal Mengajar / Bimbingan
         </button>
       </div>
 
       <AlertBanner
         variant="info"
-        title={`Hasil Pemindaian Kalender: ${freeCount} dari ${scannedSlots.length} kandidat slot dinyatakan Bebas Bentrok`}
-        description="Sistem memeriksa irisan waktu terhadap seluruh jadwal Mengajar, Bimbingan, dan Sidang Terkonfirmasi."
+        title={`Status Ketersediaan Otomatis: ${freeCount} dari ${scannedSlots.length} slot ruang sidang BAA dinyatakan Bebas Bentrok`}
+        description="Penentuan dewan penguji dan mahasiswa dilakukan oleh Kaprodi pada menu Penjadwalan Sidang; jadwal yang diterbitkan Kaprodi otomatis masuk ke agenda kalender ini."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 7 Columns: Conflict Scanner */}
-        <div className="lg:col-span-7 space-y-6">
-          <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 p-6 space-y-4">
-            <h2 className="headline-sm text-[#0F2A66] pb-3 border-b border-[#E2E8F0]">
-              Parameter Mahasiswa &amp; Dewan Penguji
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="sync-thesis" className="block label-md text-[#0B1C30] mb-1.5">
-                  Pilih Mahasiswa Sidang Proposal
-                </label>
-                <select
-                  id="sync-thesis"
-                  value={selectedThesisId}
-                  onChange={(e) => setSelectedThesisId(e.target.value)}
-                  className="input-field"
-                >
-                  {schedulableTheses.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.studentName} ({t.studentNim}) — {t.stage}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="sync-ex2" className="block label-md text-[#0B1C30] mb-1.5">
-                  Pilih Dosen Penguji Pendamping
-                </label>
-                <select
-                  id="sync-ex2"
-                  value={examiner2Id}
-                  onChange={(e) => setExaminer2Id(e.target.value)}
-                  className="input-field"
-                >
-                  {lecturers
-                    .filter((l) => l.id !== currentUser?.id)
-                    .map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-          </section>
+        {/* Left 6 Columns: Confirmed Calendar Agenda */}
+        <section className="lg:col-span-6 rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
+            <h2 className="headline-sm text-[#0B1C30]">Agenda Kalender Dosen</h2>
+            <button
+              type="button"
+              onClick={handleExportIcs}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 stroke-[1.5]" />
+              Ekspor .ICS
+            </button>
+          </div>
 
-          <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-              <h2 className="headline-sm text-[#0B1C30]">Kandidat Slot Waktu Sidang</h2>
-              <span className="code-meta text-[#475569]">
-                {hasScanned ? `${freeCount} slot tersedia` : 'Belum dipindai'}
-              </span>
-            </div>
-
+          {sortedAgenda.length === 0 ? (
+            <EmptyState message="Belum ada agenda pada kalender dosen." />
+          ) : (
             <div className="divide-y divide-[#E2E8F0]">
-              {scannedSlots.map(({ slot, conflict, isFree }, idx) => (
-                <div
-                  key={slot.id}
-                  className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                    idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <StatusBadge status={isFree ? 'Bebas Bentrok' : 'Bentrok'} />
-                      <span className="body-semibold text-[#0B1C30]">
-                        {slot.dayOfWeek}, {formatDateId(slot.date)}
-                      </span>
-                    </div>
-                    <p className="body-medium text-[#0F2A66]">
-                      {slot.startTime} - {slot.endTime} WIB — {slot.room}
-                    </p>
-                    {conflict && (
-                      <p className="code-meta text-[#B91C1C]">
-                        Bentrok dengan [{conflict.category}] {conflict.title} ({conflict.startTime}{' '}
-                        - {conflict.endTime})
-                      </p>
-                    )}
+              {sortedAgenda.map((item) => (
+                <div key={item.id} className="px-6 py-4 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 label-sm ${
+                        item.category === 'Sidang Terkonfirmasi'
+                          ? 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]'
+                          : item.category === 'Mengajar'
+                            ? 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]'
+                            : 'bg-[#FFEDD5] text-[#C2410C] border-[#FDBA74]'
+                      }`}
+                    >
+                      {item.category}
+                    </span>
+                    <span className="code-meta text-[#475569]">
+                      {item.dayOfWeek}, {formatDateId(item.date)}
+                    </span>
                   </div>
-
-                  <button
-                    type="button"
-                    disabled={!isFree}
-                    onClick={() => handleConfirmSlot(slot)}
-                    className="btn-secondary shrink-0"
-                  >
-                    <CalendarCheck className="w-4 h-4 stroke-[1.5]" />
-                    Konfirmasi ke Kalender
-                  </button>
+                  <p className="body-semibold text-[#0B1C30]">{item.title}</p>
+                  <p className="code-meta text-[#475569]">
+                    {item.startTime} - {item.endTime} WIB — {item.room}
+                  </p>
                 </div>
               ))}
             </div>
-          </section>
-        </div>
+          )}
+        </section>
 
-        {/* Right 5 Columns: Confirmed Calendar Agenda */}
-        <aside className="lg:col-span-5">
-          <section className="rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
-              <h2 className="headline-sm text-[#0B1C30]">Agenda Kalender Dosen</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAddModalOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[1.5]" />
-                  Jadwal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportIcs}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 label-md text-[#1E293B] hover:bg-[#F1F5F9] cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 stroke-[1.5]" />
-                  .ICS
-                </button>
-              </div>
-            </div>
+        {/* Right 6 Columns: Read-Only Cross-Check Against BAA Rooms */}
+        <section className="lg:col-span-6 rounded-xl border border-[#E2E8F0] bg-white shadow-level-1 overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
+            <h2 className="headline-sm text-[#0B1C30]">
+              Status Cross-Check Slot Ruang Sidang BAA
+            </h2>
+            <span className="code-meta text-[#475569]">{freeCount} bebas bentrok</span>
+          </div>
 
-            {sortedAgenda.length === 0 ? (
-              <EmptyState message="Belum ada agenda pada kalender dosen." />
-            ) : (
-              <div className="divide-y divide-[#E2E8F0]">
-                {sortedAgenda.map((item) => (
-                  <div key={item.id} className="px-6 py-4 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 label-sm ${
-                          item.category === 'Sidang Terkonfirmasi'
-                            ? 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]'
-                            : item.category === 'Mengajar'
-                              ? 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]'
-                              : 'bg-[#FFEDD5] text-[#C2410C] border-[#FDBA74]'
-                        }`}
-                      >
-                        {item.category}
-                      </span>
-                      <span className="code-meta text-[#475569]">
-                        {item.dayOfWeek}, {formatDateId(item.date)}
-                      </span>
-                    </div>
-                    <p className="body-semibold text-[#0B1C30]">{item.title}</p>
-                    <p className="code-meta text-[#475569]">
-                      {item.startTime} - {item.endTime} WIB — {item.room}
+          <div className="divide-y divide-[#E2E8F0]">
+            {scannedSlots.map(({ slot, conflict, isFree }, idx) => (
+              <div
+                key={slot.id}
+                className={`p-5 flex items-start justify-between gap-4 ${
+                  idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'
+                }`}
+              >
+                <div className="space-y-1">
+                  <p className="body-semibold text-[#0B1C30]">
+                    {slot.dayOfWeek}, {formatDateId(slot.date)} — {slot.startTime} - {slot.endTime}{' '}
+                    WIB
+                  </p>
+                  <p className="code-meta text-[#475569]">{slot.room}</p>
+                  {conflict && (
+                    <p className="code-meta text-[#B91C1C]">
+                      Bentrok dengan [{conflict.category}] {conflict.title} ({conflict.startTime} -{' '}
+                      {conflict.endTime})
                     </p>
-                  </div>
-                ))}
+                  )}
+                </div>
+                <StatusBadge status={isFree ? 'Bebas Bentrok' : 'Bentrok'} />
               </div>
-            )}
-          </section>
-        </aside>
+            ))}
+          </div>
+        </section>
       </div>
 
       {/* Add Schedule Block Modal */}

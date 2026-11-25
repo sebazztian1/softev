@@ -13,10 +13,10 @@ import { SidangPenilaianPage } from './pages/dosen/SidangPenilaianPage';
 import { SinkronisasiJadwalPage } from './pages/dosen/SinkronisasiJadwalPage';
 import { TulisReviewPage } from './pages/dosen/TulisReviewPage';
 import { KaprodiDashboard } from './pages/kaprodi/KaprodiDashboard';
-import { MonitoringTaPage } from './pages/kaprodi/MonitoringTaPage';
-import { PengaturanPeriodePage } from './pages/kaprodi/PengaturanPeriodePage';
+import { LaporanKaprodiPage } from './pages/kaprodi/LaporanKaprodiPage';
 import { PenjadwalanSidangPage } from './pages/kaprodi/PenjadwalanSidangPage';
-import { VerifikasiProposalPage } from './pages/kaprodi/VerifikasiProposalPage';
+import { PlottingReviewerPage } from './pages/kaprodi/PlottingReviewerPage';
+import { SettingMaksimumPage } from './pages/kaprodi/SettingMaksimumPage';
 import { CariProposalPage } from './pages/mahasiswa/CariProposalPage';
 import { DownloadProposalPage } from './pages/mahasiswa/DownloadProposalPage';
 import { HasilSidangPage } from './pages/mahasiswa/HasilSidangPage';
@@ -78,14 +78,16 @@ const PortalShell: React.FC = () => {
     }
 
     switch (activeTab) {
-      case 'verifikasi-proposal':
-        return <VerifikasiProposalPage />;
+      case 'plotting-reviewer':
+        return <PlottingReviewerPage />;
       case 'penjadwalan-sidang':
         return <PenjadwalanSidangPage />;
-      case 'monitoring-ta':
-        return <MonitoringTaPage />;
-      case 'pengaturan-periode':
-        return <PengaturanPeriodePage />;
+      case 'setting-maksimum':
+        return <SettingMaksimumPage />;
+      case 'laporan':
+        return <LaporanKaprodiPage />;
+      case 'cari-dokumen':
+        return <CariProposalPage pageTitle="Cari Dokumen TA & Tesis" />;
       default:
         return <KaprodiDashboard />;
     }
