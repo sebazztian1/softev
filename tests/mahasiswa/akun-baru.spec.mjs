@@ -8,7 +8,7 @@ async function keluar(page, name) {
 async function loginBudi(page, identifier = '221116950') {
   await page.locator('#login-id').fill(identifier);
   await page.locator('#login-pw').fill('istts2026');
-  await page.getByRole('button', { name: 'Login', exact: true }).click();
+  await page.getByRole('button', { name: 'Masuk', exact: true }).click();
   await expect(page.locator('main')).toContainText('Budi Santoso');
 }
 

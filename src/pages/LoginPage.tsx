@@ -49,6 +49,8 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('istts2026');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +59,40 @@ export const LoginPage: React.FC = () => {
       setError('Masukkan username, NRP/NIDN, atau surel dan kata sandi terlebih dahulu.');
       return;
     }
+    const username = identifier.trim().toLowerCase();
+    // The merged demos share Budi's username and use distinct student/admin passwords.
+    if (username === 'andi.wijaya' || (username === 'budi.santoso' && password !== 'istts2026')) {
+      if (Date.now() < lockedUntil) {
+        const remainingMinutes = Math.ceil((lockedUntil - Date.now()) / 60000);
+        setError(`E-AUTH-002 — Akun terkunci setelah 5 kali percobaan masuk yang gagal. Coba lagi dalam ${remainingMinutes} menit atau hubungi Departemen IT.`);
+        return;
+      }
+      if (password !== 'Demo#2026') {
+        const attempts = failedAttempts + 1;
+        setFailedAttempts(attempts);
+        if (attempts >= 5) {
+          setLockedUntil(Date.now() + 5 * 60 * 1000);
+          setFailedAttempts(0);
+          setError('E-AUTH-002 — Akun terkunci setelah 5 kali percobaan masuk yang gagal. Coba lagi dalam 5 menit atau hubungi Departemen IT.');
+        } else {
+          const remaining = 5 - attempts;
+          setError(`E-AUTH-001 — Username/NRP atau kata sandi tidak sesuai. Periksa kembali data yang dimasukkan.${attempts >= 3 ? ` Sisa percobaan: ${remaining}.` : ''}`);
+        }
+        return;
+      }
+      setFailedAttempts(0);
+      setLockedUntil(0);
+      localStorage.setItem('tuntas-proto-v2:persona', username === 'andi.wijaya' ? 'andi' : 'budi');
+      localStorage.setItem('tuntas-proto-v2:role', username === 'andi.wijaya' ? 'KAPRODI' : 'DEKAN');
+      loginAsRole('kaprodi');
+      return;
+    }
+    if (username === 'dosen.nonaktif') {
+      setError('Akun tidak aktif. Hubungi Departemen IT untuk mengaktifkan kembali akun Anda.');
+      return;
+    }
+    localStorage.removeItem('tuntas-proto-v2:persona');
+    localStorage.removeItem('tuntas-proto-v2:role');
     const ok = login(identifier, password);
     if (!ok) {
       setError('Identitas atau kata sandi tidak sesuai.');
@@ -109,20 +145,11 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded text-[#475569] hover:text-[#0F2A66] cursor-pointer"
-                  aria-label={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
-                  title={showPassword ? 'Sembunyikan Password' : 'Tampilkan Password'}
+                  aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4 stroke-[1.5]" />
-                  ) : (
-                    <Eye className="w-4 h-4 stroke-[1.5]" />
-                  )}
+                  {showPassword ? <EyeOff className="w-4 h-4 stroke-[1.5]" /> : <Eye className="w-4 h-4 stroke-[1.5]" />}
                 </button>
-              </div>
-              <div className="flex items-center justify-between mt-1.5">
-                <span className="code-meta text-[#64748B]">
-                  Lupa kata sandi: hubungi Departemen IT ISTTS
-                </span>
               </div>
             </div>
 
@@ -133,8 +160,11 @@ export const LoginPage: React.FC = () => {
             )}
 
             <button type="submit" className="btn-primary w-full">
-              Login
+              Masuk
             </button>
+            <p className="body-base text-[#475569]">
+              Jika lupa kata sandi, hubungi Departemen IT.
+            </p>
           </form>
 
           <div className="mt-7 pt-6 border-t border-[#E2E8F0]">
@@ -155,7 +185,11 @@ export const LoginPage: React.FC = () => {
                 <button
                   key={item.studentId ?? item.role}
                   type="button"
-                  onClick={() => loginAsRole(item.role, item.studentId)}
+                  onClick={() => {
+                    localStorage.removeItem('tuntas-proto-v2:persona');
+                    localStorage.removeItem('tuntas-proto-v2:role');
+                    loginAsRole(item.role, item.studentId);
+                  }}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-[#F8FAFC] text-left transition-colors cursor-pointer"
                 >
                   <div className="min-w-0">

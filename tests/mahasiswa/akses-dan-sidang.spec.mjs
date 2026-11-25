@@ -6,7 +6,7 @@ const button = (scope, name) => scope.getByRole('button', { name, exact: true })
 async function login(page, id, password) {
   await page.locator('#login-id').fill(id);
   await page.locator('#login-pw').fill(password);
-  await button(page, 'Login').click();
+  await button(page, 'Masuk').click();
 }
 
 async function profil(page) {
@@ -17,11 +17,11 @@ async function profil(page) {
 
 test('01. Tampilkan dan sembunyikan kata sandi serta petunjuk bantuan', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Tampilkan Password', { exact: true }).click();
+  await page.getByLabel('Tampilkan kata sandi', { exact: true }).click();
   await expect(page.locator('#login-pw')).toHaveAttribute('type', 'text');
-  await page.getByLabel('Sembunyikan Password', { exact: true }).click();
+  await page.getByLabel('Sembunyikan kata sandi', { exact: true }).click();
   await expect(page.locator('#login-pw')).toHaveAttribute('type', 'password');
-  await expect(page.getByText(/Lupa kata sandi/)).toContainText('Departemen IT');
+  await expect(page.getByText(/lupa kata sandi/i)).toContainText('Departemen IT');
 });
 
 test('02. Kredensial kosong, identitas asing dan sandi mahasiswa salah ditolak', async ({ page }) => {

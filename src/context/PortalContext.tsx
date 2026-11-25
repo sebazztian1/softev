@@ -101,6 +101,22 @@ function buildInitialState(): PersistedState {
 
 function loadState(): PersistedState {
   try {
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      localStorage.removeItem(STORAGE_KEY);
+      [
+        'tuntas-proto-v2:persona',
+        'tuntas-proto-v2:role',
+        'tuntas-proto-v2:proposals',
+        'tuntas-proto-v2:revisions',
+        'tuntas-proto-v2:lecturers',
+        'tuntas-proto-v2:quotas',
+        'tuntas-proto-v2:andi:profile-name',
+        'tuntas-proto-v2:andi:profile-email',
+        'tuntas-proto-v2:budi:profile-name',
+        'tuntas-proto-v2:budi:profile-email',
+      ].forEach((key) => localStorage.removeItem(key));
+      return buildInitialState();
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return buildInitialState();
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
@@ -1331,6 +1347,18 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const resetDemoData = () => {
+    [
+      'tuntas-proto-v2:persona',
+      'tuntas-proto-v2:role',
+      'tuntas-proto-v2:proposals',
+      'tuntas-proto-v2:revisions',
+      'tuntas-proto-v2:lecturers',
+      'tuntas-proto-v2:quotas',
+      'tuntas-proto-v2:andi:profile-name',
+      'tuntas-proto-v2:andi:profile-email',
+      'tuntas-proto-v2:budi:profile-name',
+      'tuntas-proto-v2:budi:profile-email',
+    ].forEach((key) => localStorage.removeItem(key));
     const fresh = buildInitialState();
     setState((prev) => ({ ...fresh, currentRole: prev.currentRole }));
     showToast('Data simulasi berhasil dikembalikan ke kondisi awal');

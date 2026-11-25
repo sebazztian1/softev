@@ -22,17 +22,32 @@ import { DownloadProposalPage } from './pages/mahasiswa/DownloadProposalPage';
 import { HasilSidangPage } from './pages/mahasiswa/HasilSidangPage';
 import { MahasiswaDashboard } from './pages/mahasiswa/MahasiswaDashboard';
 import { RekomendasiJudulPage } from './pages/mahasiswa/RekomendasiJudulPage';
+import { AdminPortal } from './pages/admin/AdminPortal';
+
 const UploadProposalPage = React.lazy(() => import('./pages/mahasiswa/UploadProposalPage').then(module => ({ default: module.UploadProposalPage })));
 const UploadRevisiPage = React.lazy(() => import('./pages/mahasiswa/UploadRevisiPage').then(module => ({ default: module.UploadRevisiPage })));
 
 const PortalShell: React.FC = () => {
-  const { currentUser, activeTab, focusedThesisId } = usePortal();
+  const { currentUser, activeTab, focusedThesisId, logout } = usePortal();
   const [profileOpen, setProfileOpen] = useState(false);
 
   if (!currentUser) {
     return (
       <>
         <LoginPage />
+        <Toast />
+      </>
+    );
+  }
+
+  if (
+    currentUser.role === 'kaprodi' &&
+    localStorage.getItem('tuntas-proto-v2:persona')
+  ) {
+    return (
+      <>
+        <AdminPortal onExit={logout} />
+        <PdfPreviewModal />
         <Toast />
       </>
     );
