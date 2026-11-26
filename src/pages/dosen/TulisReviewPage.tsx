@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CheckCircle2, Download, Eye, FileCheck2, QrCode, XCircle } from 'lucide-react';
+import { Camera, CheckCircle2, Download, Eye, FileCheck2, PenLine, QrCode, XCircle } from 'lucide-react';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FileDropzone } from '../../components/ui/FileDropzone';
@@ -7,7 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { QrCodeSvg } from '../../components/ui/QrCodeSvg';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePortal } from '../../context/PortalContext';
-import { AcademicStatus, ThesisRecord } from '../../types/portal';
+import { AcademicStatus, RevisionApprovalMethod, ThesisRecord } from '../../types/portal';
 import { downloadPdfPayload, formatDateId, getLecturerName } from '../../utils/format';
 
 export const TulisReviewPage: React.FC = () => {
@@ -20,7 +20,7 @@ export const TulisReviewPage: React.FC = () => {
     clearFocus,
     openFilePreview,
     submitDosenEvaluation,
-    approveRevisionByQr,
+    approveRevision,
     showToast,
   } = usePortal();
 
@@ -33,29 +33,46 @@ export const TulisReviewPage: React.FC = () => {
   const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // QR Approval state
+  // Revision Approval state (TTD Dosen or optional QR replacement)
+  const [approvalMethod, setApprovalMethod] = useState<RevisionApprovalMethod>('ttd-dosen');
   const [qrInput, setQrInput] = useState('');
-  const [qrTarget, setQrTarget] = useState<ThesisRecord | null>(null);
-  const [qrNotes, setQrNotes] = useState(
+  const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
+  const [revisionNotes, setRevisionNotes] = useState(
     'Revisi telah sesuai dengan catatan perbaikan sidang proposal.',
   );
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const revisionTarget = useMemo(
+    () => theses.find((t) => t.id === selectedRevisionId) ?? null,
+    [theses, selectedRevisionId],
+  );
+
+  const handleStopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
   useEffect(() => {
     if (activeSubTab === 'qr-approval') {
       setTab('qr-approval');
     } else if (activeSubTab === 'review-list') {
       setTab('review-list');
+      handleStopCamera();
     }
 
     if (focusedThesisId) {
       const target = theses.find((t) => t.id === focusedThesisId);
       if (target) {
         if (activeSubTab === 'qr-approval') {
-          setQrInput(target.revisionQrToken ?? target.id);
-          setQrTarget(target);
+          setSelectedRevisionId(target.id);
+          setQrInput(target.revisionQrToken ?? '');
+          setApprovalMethod('ttd-dosen');
         } else {
           setSelected(target);
           setDecision(target.status === 'Diterima' ? 'Diterima' : 'Perlu Revisi');
@@ -94,8 +111,8 @@ export const TulisReviewPage: React.FC = () => {
     });
   }, [theses, currentUser, periodFilter, statusFilter]);
 
-  const qrCandidates = useMemo(
-    () => theses.filter((t) => Boolean(t.revisionQrToken)),
+  const revisionCandidates = useMemo(
+    () => theses.filter((t) => t.stage === 'Revisi Proposal' || Boolean(t.revisionQrToken)),
     [theses],
   );
 
@@ -122,6 +139,14 @@ export const TulisReviewPage: React.FC = () => {
     }
   };
 
+  const handleSelectMethod = (method: RevisionApprovalMethod) => {
+    setApprovalMethod(method);
+    if (method === 'ttd-dosen') {
+      handleStopCamera();
+      setCameraMessage(null);
+    }
+  };
+
   const handleLookupQr = (tokenValue: string) => {
     const clean = tokenValue.trim().toLowerCase();
     if (!clean) {
@@ -135,18 +160,19 @@ export const TulisReviewPage: React.FC = () => {
     );
     if (!found) {
       showToast('Token QR tidak cocok dengan data revisi mahasiswa.', 'error');
-      setQrTarget(null);
+      setSelectedRevisionId(null);
       return;
     }
+    setApprovalMethod('qr-opsional');
     setQrInput(found.revisionQrToken ?? found.id);
-    setQrTarget(found);
+    setSelectedRevisionId(found.id);
   };
 
   const handleStartCamera = async () => {
     setCameraMessage(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraMessage(
-        'Kamera perangkat tidak tersedia pada browser ini. Gunakan daftar pemindaian cepat di samping.',
+        'Kamera perangkat tidak tersedia pada browser ini. Gunakan daftar mahasiswa di samping atau masukkan token manual.',
       );
       return;
     }
@@ -162,34 +188,28 @@ export const TulisReviewPage: React.FC = () => {
       }, 50);
     } catch {
       setCameraMessage(
-        'Izin kamera ditolak atau kamera tidak terdeteksi. Gunakan input token atau simulasi pemindaian.',
+        'Izin kamera ditolak atau kamera tidak terdeteksi. Gunakan input token atau pilih mahasiswa dari daftar.',
       );
     }
   };
 
-  const handleStopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setCameraActive(false);
-  };
+  const handleRevisionDecision = (choice: 'Diterima' | 'Ditolak') => {
+    if (!revisionTarget) return;
+    const defaultNote =
+      choice === 'Diterima'
+        ? approvalMethod === 'qr-opsional'
+          ? 'Revisi disetujui melalui pemindaian QR Code (pengganti TTD dosen).'
+          : 'Revisi disetujui langsung melalui TTD dosen.'
+        : approvalMethod === 'qr-opsional'
+          ? 'Revisi ditolak melalui verifikasi QR Code.'
+          : 'Revisi ditolak dan dikembalikan untuk perbaikan.';
 
-  const handleQrDecision = (choice: 'Diterima' | 'Ditolak') => {
-    if (!qrTarget) return;
-    const ok = approveRevisionByQr(
-      qrTarget.revisionQrToken ?? qrTarget.id,
-      choice,
-      qrNotes.trim() ||
-        (choice === 'Diterima'
-          ? 'Revisi disetujui melalui pemindaian QR.'
-          : 'Revisi ditolak melalui pemindaian QR.'),
-    );
-    if (ok) {
-      const refreshed = theses.find((t) => t.id === qrTarget.id) ?? null;
-      setQrTarget(refreshed);
-    }
+    const identifier =
+      approvalMethod === 'qr-opsional'
+        ? (revisionTarget.revisionQrToken ?? revisionTarget.id)
+        : revisionTarget.id;
+
+    approveRevision(identifier, choice, revisionNotes.trim() || defaultNote, approvalMethod);
   };
 
   return (
@@ -198,8 +218,8 @@ export const TulisReviewPage: React.FC = () => {
         <div>
           <h1 className="headline-lg text-[#0B1C30]">Tulis Review &amp; Verifikasi Revisi</h1>
           <p className="body-base text-[#475569] mt-1">
-            Pemilihan periode pengajuan, penulisan catatan review, dan persetujuan revisi via QR
-            Code
+            Pemilihan periode pengajuan, penulisan catatan review, serta persetujuan revisi (TTD
+            dosen atau QR Code opsional)
           </p>
         </div>
       </div>
@@ -209,7 +229,10 @@ export const TulisReviewPage: React.FC = () => {
         <div className="flex items-center border-b border-[#E2E8F0] px-6 gap-6">
           <button
             type="button"
-            onClick={() => setTab('review-list')}
+            onClick={() => {
+              setTab('review-list');
+              handleStopCamera();
+            }}
             className={`relative py-4 body-semibold cursor-pointer ${
               tab === 'review-list' ? 'text-[#0F2A66]' : 'text-[#475569] hover:text-[#0F2A66]'
             }`}
@@ -227,7 +250,7 @@ export const TulisReviewPage: React.FC = () => {
               tab === 'qr-approval' ? 'text-[#0F2A66]' : 'text-[#475569] hover:text-[#0F2A66]'
             }`}
           >
-            Approve Revisi by QR
+            Approve Revisi (QR Opsional)
             {tab === 'qr-approval' && (
               <span className="absolute bottom-0 inset-x-0 h-[3px] bg-[#0F2A66]" />
             )}
@@ -337,112 +360,218 @@ export const TulisReviewPage: React.FC = () => {
             )}
           </div>
         ) : (
-          /* QR Approval Tab */
+          /* Revision Approval Tab (TTD Dosen or optional QR) */
           <div className="p-6 sm:p-8 space-y-6">
             <AlertBanner
               variant="info"
-              title="Verifikasi Persetujuan Revisi Proposal melalui QR Code"
-              description="Pindai QR Code dari lembar revisi mahasiswa atau pilih token QR aktif di bawah ini untuk menyetujui atau menolak revisi secara instan."
+              title="Persetujuan Revisi Proposal (QR Code Opsional — Pengganti TTD Dosen)"
+              description="Approve revisi melalui QR Code bersifat opsional sebagai pengganti tanda tangan (TTD) dosen pada lembar revisi. Anda dapat menyetujui revisi secara langsung tanpa QR (TTD dosen), atau memilih mode QR Code untuk pengesahan digital."
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Scanner & Manual Input (7 cols) */}
+              {/* Method Selector, Verification Panel & Target Detail (7 cols) */}
               <div className="lg:col-span-7 space-y-5">
-                <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div
+                  role="radiogroup"
+                  aria-label="Metode Persetujuan Revisi"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={approvalMethod === 'ttd-dosen'}
+                    onClick={() => handleSelectMethod('ttd-dosen')}
+                    className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                      approvalMethod === 'ttd-dosen'
+                        ? 'border-[#0F2A66] bg-[#EFF6FF]/60'
+                        : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
+                    }`}
+                  >
                     <div className="flex items-center gap-2">
-                      <QrCode className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
-                      <h2 className="headline-sm text-[#0B1C30]">Pemindai &amp; Input Token QR</h2>
+                      <PenLine className="w-4 h-4 text-[#0F2A66] stroke-[1.5]" />
+                      <span className="body-semibold text-[#0B1C30]">
+                        Persetujuan Langsung (TTD Dosen)
+                      </span>
                     </div>
-                    {!cameraActive ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleStartCamera()}
-                        className="btn-secondary"
-                      >
-                        <Camera className="w-4 h-4 stroke-[1.5]" />
-                        Aktifkan Kamera Scanner
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleStopCamera}
-                        className="btn-secondary"
-                      >
-                        Matikan Kamera
-                      </button>
-                    )}
-                  </div>
+                    <p className="code-meta text-[#475569] mt-1">
+                      Sahkan revisi langsung dari daftar mahasiswa tanpa memindai QR (untuk
+                      lembar revisi dengan TTD dosen).
+                    </p>
+                  </button>
 
-                  {cameraActive && (
-                    <div className="rounded-lg border border-[#CBD5E1] bg-black overflow-hidden">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-52 object-cover"
-                      />
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={approvalMethod === 'qr-opsional'}
+                    onClick={() => handleSelectMethod('qr-opsional')}
+                    className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                      approvalMethod === 'qr-opsional'
+                        ? 'border-[#0F2A66] bg-[#EFF6FF]/60'
+                        : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2">
+                        <QrCode className="w-4 h-4 text-[#0F2A66] stroke-[1.5]" />
+                        <span className="body-semibold text-[#0B1C30]">Approve by QR Code</span>
+                      </span>
+                      <span className="label-sm rounded-full border border-[#CBD5E1] bg-white px-2 py-0.5 text-[#475569]">
+                        Opsional
+                      </span>
                     </div>
-                  )}
-
-                  {cameraMessage && (
-                    <p className="body-base text-[#C2410C]">{cameraMessage}</p>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      type="text"
-                      value={qrInput}
-                      onChange={(e) => setQrInput(e.target.value)}
-                      placeholder="Masukkan kode token QR (misal: ISTTS-REV-221116942-V1)"
-                      className="input-field flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleLookupQr(qrInput)}
-                      className="btn-primary shrink-0"
-                    >
-                      Verifikasi Token QR
-                    </button>
-                  </div>
+                    <p className="code-meta text-[#475569] mt-1">
+                      Opsional sebagai pengganti TTD dosen melalui pemindaian kamera atau input
+                      token QR.
+                    </p>
+                  </button>
                 </div>
 
-                {/* Scanned Result Panel */}
-                {qrTarget ? (
+                {approvalMethod === 'ttd-dosen' ? (
+                  <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <PenLine className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
+                      <h2 className="headline-sm text-[#0B1C30]">
+                        Persetujuan Langsung Tanpa QR (TTD Dosen)
+                      </h2>
+                    </div>
+                    <div>
+                      <label htmlFor="select-rev-student" className="block label-md text-[#0B1C30] mb-1.5">
+                        Pilih Mahasiswa Revisi
+                      </label>
+                      <select
+                        id="select-rev-student"
+                        value={selectedRevisionId ?? ''}
+                        onChange={(e) => {
+                          const nextId = e.target.value || null;
+                          setSelectedRevisionId(nextId);
+                          const chosen = theses.find((t) => t.id === nextId);
+                          if (chosen) {
+                            setQrInput(chosen.revisionQrToken ?? '');
+                          }
+                        }}
+                        className="input-field"
+                      >
+                        <option value="">Pilih mahasiswa dari daftar revisi</option>
+                        {revisionCandidates.map((cand) => (
+                          <option key={cand.id} value={cand.id}>
+                            {cand.studentName} ({cand.studentNim}) — {cand.status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <QrCode className="w-5 h-5 text-[#0F2A66] stroke-[1.5]" />
+                        <h2 className="headline-sm text-[#0B1C30]">Pemindai &amp; Input Token QR</h2>
+                        <span className="label-sm rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-0.5 text-[#1D4ED8]">
+                          Opsional · Pengganti TTD Dosen
+                        </span>
+                      </div>
+                      {!cameraActive ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleStartCamera()}
+                          className="btn-secondary"
+                        >
+                          <Camera className="w-4 h-4 stroke-[1.5]" />
+                          Aktifkan Kamera Scanner
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStopCamera}
+                          className="btn-secondary"
+                        >
+                          Matikan Kamera
+                        </button>
+                      )}
+                    </div>
+
+                    {cameraActive && (
+                      <div className="rounded-lg border border-[#CBD5E1] bg-black overflow-hidden">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-52 object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {cameraMessage && (
+                      <p className="body-base text-[#C2410C]">{cameraMessage}</p>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input
+                        type="text"
+                        value={qrInput}
+                        onChange={(e) => setQrInput(e.target.value)}
+                        placeholder="Masukkan kode token QR (misal: ISTTS-REV-221116942-V1)"
+                        className="input-field flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLookupQr(qrInput)}
+                        className="btn-primary shrink-0"
+                      >
+                        Verifikasi Token QR
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Revision Detail Panel */}
+                {revisionTarget ? (
                   <div className="rounded-xl border border-[#E2E8F0] bg-white p-6 space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-[#E2E8F0]">
                       <div>
                         <span className="code-meta text-[#0284C7] font-semibold">
-                          Token Terverifikasi: {qrTarget.revisionQrToken}
+                          {approvalMethod === 'qr-opsional'
+                            ? `Metode: QR Code Opsional (Pengganti TTD Dosen) — Token ${
+                                revisionTarget.revisionQrToken ?? revisionTarget.id
+                              }`
+                            : 'Metode: Persetujuan Langsung / TTD Dosen (Tanpa QR)'}
                         </span>
                         <h3 className="headline-sm text-[#0B1C30] mt-1">
-                          {qrTarget.studentName} ({qrTarget.studentNim})
+                          {revisionTarget.studentName} ({revisionTarget.studentNim})
                         </h3>
-                        <p className="body-base text-[#475569] mt-0.5">{qrTarget.title}</p>
+                        <p className="body-base text-[#475569] mt-0.5">{revisionTarget.title}</p>
+                        {revisionTarget.status === 'Diterima' &&
+                          revisionTarget.revisionApprovalMethod && (
+                            <p className="code-meta text-[#15803D] font-semibold mt-1">
+                              {revisionTarget.revisionApprovalMethod === 'qr-opsional'
+                                ? 'Disahkan melalui QR Code (Pengganti TTD Dosen)'
+                                : 'Disahkan melalui TTD Dosen (Tanpa QR)'}
+                            </p>
+                          )}
                       </div>
-                      <StatusBadge status={qrTarget.status} />
+                      <StatusBadge status={revisionTarget.status} />
                     </div>
 
-                    {qrTarget.submissions[0] && (
+                    {revisionTarget.submissions[0] && (
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                         <div className="min-w-0">
                           <p className="body-semibold text-[#0B1C30] truncate">
-                            {qrTarget.submissions[0].fileName}
+                            {revisionTarget.submissions[0].fileName}
                           </p>
                           <p className="code-meta text-[#475569] mt-0.5">
-                            {qrTarget.submissions[0].summary}
+                            {revisionTarget.submissions[0].summary}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
-                            const latest = qrTarget.submissions[0];
+                            const latest = revisionTarget.submissions[0];
                             openFilePreview({
                               id: latest.id,
                               fileName: latest.fileName,
                               title: latest.pdfTitle ?? latest.versionLabel,
-                              subtitle: `${qrTarget.studentName} (${qrTarget.studentNim})`,
+                              subtitle: `${revisionTarget.studentName} (${revisionTarget.studentNim})`,
                               lines: latest.pdfLines ?? [`Ringkasan: ${latest.summary}`],
                               hasRealBlob: latest.hasRealBlob,
                             });
@@ -457,13 +586,13 @@ export const TulisReviewPage: React.FC = () => {
 
                     <div>
                       <label htmlFor="qr-notes" className="block label-md text-[#0B1C30] mb-1.5">
-                        Catatan Persetujuan / Penolakan QR
+                        Catatan Persetujuan / Penolakan Revisi
                       </label>
                       <textarea
                         id="qr-notes"
                         rows={3}
-                        value={qrNotes}
-                        onChange={(e) => setQrNotes(e.target.value)}
+                        value={revisionNotes}
+                        onChange={(e) => setRevisionNotes(e.target.value)}
                         className="textarea-field"
                       />
                     </div>
@@ -471,7 +600,7 @@ export const TulisReviewPage: React.FC = () => {
                     <div className="flex flex-wrap justify-end gap-3 pt-3 border-t border-[#E2E8F0]">
                       <button
                         type="button"
-                        onClick={() => handleQrDecision('Ditolak')}
+                        onClick={() => handleRevisionDecision('Ditolak')}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-4 h-[42px] body-semibold text-[#B91C1C] hover:bg-[#FEE2E2] cursor-pointer"
                       >
                         <XCircle className="w-4 h-4 stroke-[1.5]" />
@@ -479,53 +608,95 @@ export const TulisReviewPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleQrDecision('Diterima')}
+                        onClick={() => handleRevisionDecision('Diterima')}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-[#86EFAC] bg-[#DCFCE7] px-4 h-[42px] body-semibold text-[#15803D] hover:bg-[#BBF7D0] cursor-pointer"
                       >
                         <CheckCircle2 className="w-4 h-4 stroke-[1.5]" />
-                        Setujui Revisi
+                        {approvalMethod === 'qr-opsional'
+                          ? 'Setujui Revisi via QR'
+                          : 'Setujui Revisi (TTD Dosen)'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <EmptyState
-                    icon={QrCode}
-                    message="Pilih atau pindai salah satu kode QR revisi mahasiswa untuk menampilkan detail dan memberikan persetujuan."
+                    icon={approvalMethod === 'qr-opsional' ? QrCode : PenLine}
+                    message={
+                      approvalMethod === 'qr-opsional'
+                        ? 'Pilih atau pindai salah satu kode QR revisi mahasiswa untuk pengesahan digital pengganti TTD dosen.'
+                        : 'Pilih mahasiswa revisi dari daftar untuk memberikan persetujuan langsung (TTD dosen) tanpa memindai QR.'
+                    }
                   />
                 )}
               </div>
 
-              {/* Simulasi QR List (5 cols) */}
+              {/* Revision Candidate List (5 cols) */}
               <div className="lg:col-span-5">
                 <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
                   <div className="px-5 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                    <h3 className="headline-sm text-[#0B1C30]">
-                      Kode QR Revisi Mahasiswa Aktif
-                    </h3>
+                    <h3 className="headline-sm text-[#0B1C30]">Daftar Revisi Mahasiswa</h3>
                   </div>
-                  <div className="divide-y divide-[#E2E8F0]">
-                    {qrCandidates.map((cand) => (
-                      <div key={cand.id} className="p-4 flex items-center gap-4">
-                        <QrCodeSvg value={cand.revisionQrToken ?? cand.id} size={76} />
-                        <div className="min-w-0 flex-1">
-                          <p className="body-semibold text-[#0B1C30] truncate">
-                            {cand.studentName}
-                          </p>
-                          <p className="code-meta text-[#475569]">{cand.studentNim}</p>
-                          <p className="code-meta text-[#0F2A66] font-semibold mt-0.5 truncate">
-                            {cand.revisionQrToken}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => handleLookupQr(cand.revisionQrToken ?? cand.id)}
-                            className="label-md text-[#0284C7] hover:underline mt-1.5 cursor-pointer"
-                          >
-                            Simulasikan Pindai QR ini
-                          </button>
+                  {revisionCandidates.length === 0 ? (
+                    <EmptyState message="Belum ada pengajuan revisi mahasiswa." />
+                  ) : (
+                    <div className="divide-y divide-[#E2E8F0]">
+                      {revisionCandidates.map((cand) => (
+                        <div key={cand.id} className="p-4 flex items-start gap-4">
+                          {cand.revisionQrToken ? (
+                            <QrCodeSvg value={cand.revisionQrToken} size={68} />
+                          ) : (
+                            <div className="w-[68px] h-[68px] shrink-0 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-center">
+                              <PenLine className="w-5 h-5 text-[#94A3B8] stroke-[1.5]" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="body-semibold text-[#0B1C30] truncate">
+                                {cand.studentName}
+                              </p>
+                              <StatusBadge status={cand.status} />
+                            </div>
+                            <p className="code-meta text-[#475569]">{cand.studentNim}</p>
+                            {cand.revisionQrToken && (
+                              <p className="code-meta text-[#0F2A66] font-semibold mt-0.5 truncate">
+                                {cand.revisionQrToken}
+                              </p>
+                            )}
+                            {cand.status === 'Diterima' && cand.revisionApprovalMethod && (
+                              <p className="code-meta text-[#15803D] mt-0.5">
+                                Disahkan:{' '}
+                                {cand.revisionApprovalMethod === 'qr-opsional'
+                                  ? 'QR Code (Pengganti TTD)'
+                                  : 'TTD Dosen'}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-3 mt-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectMethod('ttd-dosen');
+                                  setSelectedRevisionId(cand.id);
+                                  setQrInput(cand.revisionQrToken ?? '');
+                                }}
+                                className="label-md text-[#0F2A66] hover:underline cursor-pointer"
+                              >
+                                Pilih (TTD Dosen)
+                              </button>
+                              {cand.revisionQrToken && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleLookupQr(cand.revisionQrToken!)}
+                                  className="label-md text-[#0284C7] hover:underline cursor-pointer"
+                                >
+                                  Pindai QR (Opsional)
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -552,6 +723,14 @@ export const TulisReviewPage: React.FC = () => {
                 {getLecturerName(lecturers, selected.advisor2Id)}
               </p>
             </div>
+
+            {selected.stage === 'Revisi Proposal' && (
+              <AlertBanner
+                variant="info"
+                title="Persetujuan Langsung (TTD Dosen)"
+                description="Menyetujui naskah melalui formulir ini dicatat sebagai pengesahan langsung (TTD dosen). Persetujuan melalui QR Code pada tab Approve Revisi bersifat opsional sebagai pengganti TTD dosen."
+              />
+            )}
 
             {selected.submissions[0] && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">

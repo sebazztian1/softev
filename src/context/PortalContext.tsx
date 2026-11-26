@@ -37,6 +37,7 @@ import {
   NotificationItem,
   OfficialTemplate,
   PreviewFilePayload,
+  RevisionApprovalMethod,
   SubmissionFile,
   ThesisRecord,
   TopicRecommendation,
@@ -233,6 +234,12 @@ interface PortalContextValue {
     notes: string,
     correctionFile?: File | null,
   ) => Promise<void>;
+  approveRevision: (
+    thesisIdOrQrToken: string,
+    decision: 'Diterima' | 'Ditolak',
+    notes: string,
+    method?: RevisionApprovalMethod,
+  ) => boolean;
   approveRevisionByQr: (
     qrTokenOrThesisId: string,
     decision: 'Diterima' | 'Ditolak',
@@ -692,8 +699,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           updatedAt: uploadedAt, submissions: [revision, ...item.submissions],
         } : item);
         let notifications = pushNotification(prev.notifications, 'dosen',
-          `Permintaan Persetujuan Revisi (QR): ${student.name}`,
-          `${student.name} (${student.identifier}) mengunggah ${revision.versionLabel} dengan token QR ${qrToken}.`,
+          `Permintaan Persetujuan Revisi: ${student.name}`,
+          `${student.name} (${student.identifier}) mengunggah ${revision.versionLabel}. Pengesahan dapat dilakukan dengan TTD dosen atau QR Code opsional (${qrToken}).`,
           'tulis-review', 'qr-approval', thesisId);
         notifications = pushNotification(notifications, 'kaprodi',
           `Revisi Siap Verifikasi QR: ${student.name}`,
@@ -754,6 +761,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         notes,
         evaluatedAt: new Date().toISOString(),
         correctionFile: uploadedCorrection,
+        ...(target.stage === 'Revisi Proposal' ? { approvalMethod: 'ttd-dosen' as const } : {}),
       };
 
       const nextStage =
@@ -769,6 +777,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               ...item,
               status: decision,
               stage: nextStage,
+              ...(target.stage === 'Revisi Proposal' && decision === 'Diterima'
+                ? { revisionApprovalMethod: 'ttd-dosen' as const }
+                : {}),
               updatedAt: new Date().toISOString(),
               evaluations: [newEval, ...item.evaluations],
               submissions: uploadedCorrection
@@ -796,19 +807,25 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showToast('Catatan review dan evaluasi berhasil disimpan');
   };
 
-  const approveRevisionByQr = (
-    qrTokenOrThesisId: string,
+  const approveRevision = (
+    thesisIdOrQrToken: string,
     decision: 'Diterima' | 'Ditolak',
     notes: string,
+    method: RevisionApprovalMethod = 'qr-opsional',
   ): boolean => {
-    const clean = qrTokenOrThesisId.trim().toLowerCase();
+    const clean = thesisIdOrQrToken.trim().toLowerCase();
     const target = state.theses.find(
       (t) =>
         t.id.toLowerCase() === clean ||
         (t.revisionQrToken && t.revisionQrToken.toLowerCase() === clean),
     );
     if (!target) {
-      showToast('Token QR revisi tidak ditemukan pada sistem.', 'error');
+      showToast(
+        method === 'qr-opsional'
+          ? 'Token QR revisi tidak ditemukan pada sistem.'
+          : 'Data revisi mahasiswa tidak ditemukan pada sistem.',
+        'error',
+      );
       return false;
     }
 
@@ -819,18 +836,42 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ? 'Kaprodi'
         : target.advisor1Id === actor.id
           ? 'Pembimbing 1'
-          : 'Penguji 1';
+          : target.advisor2Id === actor.id
+            ? 'Pembimbing 2'
+            : 'Penguji 1';
+
+    const noteSuffix =
+      actor.role === 'kaprodi'
+        ? `(Verifikasi QR: ${target.revisionQrToken ?? target.id})`
+        : method === 'qr-opsional'
+          ? `(Persetujuan QR Opsional — Pengganti TTD Dosen: ${target.revisionQrToken ?? target.id})`
+          : '(Persetujuan Langsung / TTD Dosen tanpa QR)';
+
+    const notifTitle =
+      actor.role === 'kaprodi'
+        ? `Verifikasi QR Revisi: ${decision === 'Diterima' ? 'Disetujui' : 'Ditolak'}`
+        : method === 'ttd-dosen'
+          ? `Persetujuan Revisi (TTD Dosen): ${decision === 'Diterima' ? 'Disetujui' : 'Ditolak'}`
+          : `Persetujuan Revisi (QR): ${decision === 'Diterima' ? 'Disetujui' : 'Ditolak'}`;
+
+    const notifMessage =
+      actor.role === 'kaprodi'
+        ? `${actor.name} memverifikasi revisi melalui QR Code dengan status "${statusFinal}".`
+        : method === 'ttd-dosen'
+          ? `${actor.name} memverifikasi revisi secara langsung (TTD dosen) dengan status "${statusFinal}".`
+          : `${actor.name} memverifikasi revisi melalui QR Code (pengganti TTD dosen) dengan status "${statusFinal}".`;
 
     setState((prev) => {
       const evalRecord: EvaluationRecord = {
-        id: `eval-qr-${Date.now()}`,
+        id: `eval-${method === 'ttd-dosen' ? 'ttd' : 'qr'}-${Date.now()}`,
         evaluatorId: actor.id,
         evaluatorName: actor.name,
         evaluatorRole,
         stage: 'Revisi Proposal',
         status: statusFinal,
-        notes: `${notes} (Verifikasi QR: ${target.revisionQrToken ?? target.id})`,
+        notes: `${notes} ${noteSuffix}`,
         evaluatedAt: new Date().toISOString(),
+        approvalMethod: method,
       };
 
       const updatedTheses = prev.theses.map((item) =>
@@ -842,6 +883,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 decision === 'Diterima'
                   ? ('Pengesahan Akhir' as const)
                   : ('Revisi Proposal' as const),
+              revisionApprovalMethod: decision === 'Diterima' ? method : undefined,
               updatedAt: new Date().toISOString(),
               evaluations: [evalRecord, ...item.evaluations],
             }
@@ -851,8 +893,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const notifs = pushNotification(
         prev.notifications,
         'mahasiswa',
-        `Verifikasi QR Revisi: ${decision === 'Diterima' ? 'Disetujui' : 'Ditolak'}`,
-        `${actor.name} memverifikasi revisi melalui QR Code dengan status "${statusFinal}".`,
+        notifTitle,
+        notifMessage,
         decision === 'Diterima' ? 'hasil-sidang' : 'upload-revisi',
       );
 
@@ -863,13 +905,25 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     });
 
-    showToast(
-      decision === 'Diterima'
-        ? `Revisi ${target.studentName} disetujui melalui QR Code`
-        : `Revisi ${target.studentName} ditolak dan dikembalikan untuk perbaikan`,
-    );
+    if (decision === 'Diterima') {
+      showToast(
+        actor.role === 'kaprodi'
+          ? `Revisi ${target.studentName} disetujui melalui QR Code`
+          : method === 'ttd-dosen'
+            ? `Revisi ${target.studentName} disetujui secara langsung (TTD dosen)`
+            : `Revisi ${target.studentName} disetujui melalui QR Code (pengganti TTD dosen)`,
+      );
+    } else {
+      showToast(`Revisi ${target.studentName} ditolak dan dikembalikan untuk perbaikan`);
+    }
     return true;
   };
+
+  const approveRevisionByQr = (
+    qrTokenOrThesisId: string,
+    decision: 'Diterima' | 'Ditolak',
+    notes: string,
+  ): boolean => approveRevision(qrTokenOrThesisId, decision, notes, 'qr-opsional');
 
   const submitDefenseScore = (
     thesisId: string,
@@ -1417,6 +1471,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     uploadProposal,
     uploadRevision,
     submitDosenEvaluation,
+    approveRevision,
     approveRevisionByQr,
     submitDefenseScore,
     saveProposalReviewers,

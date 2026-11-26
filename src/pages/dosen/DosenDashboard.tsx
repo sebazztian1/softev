@@ -15,7 +15,7 @@ const STRUCTURAL_ROLE_OPTIONS: Array<{
   {
     key: 'reviewer-proposal',
     label: 'Reviewer & Penguji Proposal',
-    description: 'Menulis catatan review proposal, sidang, dan verifikasi revisi QR.',
+    description: 'Menulis catatan review proposal, sidang, serta pengesahan revisi (TTD dosen atau QR opsional).',
   },
   {
     key: 'promotor-s3',
@@ -52,10 +52,10 @@ export const DosenDashboard: React.FC = () => {
   const pendingReview = supervised.filter(
     (t) => t.status === 'Menunggu Verifikasi' || t.status === 'Perlu Revisi',
   );
-  const pendingQr = theses.filter(
+  const pendingRevisions = theses.filter(
     (t) =>
-      Boolean(t.revisionQrToken) &&
       t.stage === 'Revisi Proposal' &&
+      t.status !== 'Diterima' &&
       (t.advisor1Id === currentUser.id ||
         t.advisor2Id === currentUser.id ||
         t.defenseSchedule?.examiner1Id === currentUser.id),
@@ -90,22 +90,22 @@ export const DosenDashboard: React.FC = () => {
         </button>
       </div>
 
-      {(pendingReview.length > 0 || ungradedDefenses.length > 0 || pendingQr.length > 0) && (
+      {(pendingReview.length > 0 || ungradedDefenses.length > 0 || pendingRevisions.length > 0) && (
         <AlertBanner
           variant="info"
-          title={`Terdapat ${pendingReview.length} proposal menunggu review, ${pendingQr.length} revisi QR siap disahkan, dan ${ungradedDefenses.length} sidang menunggu hasil.`}
-          description={`Periode sidang proposal berlangsung pada ${period.defenseWindow}.`}
+          title={`Terdapat ${pendingReview.length} proposal menunggu review, ${pendingRevisions.length} revisi siap disahkan, dan ${ungradedDefenses.length} sidang menunggu hasil.`}
+          description={`Periode sidang proposal berlangsung pada ${period.defenseWindow}. Pengesahan revisi dapat dilakukan langsung (TTD dosen) atau melalui QR Code opsional sebagai pengganti TTD.`}
           action={
-            pendingQr.length > 0 ? (
+            pendingRevisions.length > 0 ? (
               <button
                 type="button"
                 onClick={() =>
-                  navigateWithContext('tulis-review', 'qr-approval', pendingQr[0].id)
+                  navigateWithContext('tulis-review', 'qr-approval', pendingRevisions[0].id)
                 }
                 className="btn-secondary"
               >
                 <QrCode className="w-4 h-4 stroke-[1.5]" />
-                Approve Revisi QR
+                Approve Revisi (QR Opsional)
               </button>
             ) : undefined
           }

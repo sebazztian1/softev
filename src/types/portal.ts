@@ -13,6 +13,8 @@ export type AcademicStatus =
   | 'Diterima'
   | 'Ditolak';
 
+export type RevisionApprovalMethod = 'ttd-dosen' | 'qr-opsional';
+
 export type ThesisStage =
   | 'Pengajuan Proposal'
   | 'Verifikasi Kaprodi'
@@ -85,6 +87,7 @@ export interface EvaluationRecord {
   evaluatedAt: string;
   score?: number;
   correctionFile?: SubmissionFile;
+  approvalMethod?: RevisionApprovalMethod;
 }
 
 export interface DefenseRubricScore {
@@ -130,6 +133,7 @@ export interface ThesisRecord {
   taExaminers: string[]; // max 4, min 2 from proposalReviewers
   skIssued?: boolean;
   revisionQrToken?: string;
+  revisionApprovalMethod?: RevisionApprovalMethod;
   submissions: SubmissionFile[];
   evaluations: EvaluationRecord[];
   defenseSchedule?: DefenseSchedule;

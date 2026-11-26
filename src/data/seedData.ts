@@ -1372,9 +1372,9 @@ export const SEED_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'notif-03',
     targetRole: 'dosen',
-    title: 'Permintaan Persetujuan Revisi (QR): Kevin Hartanto',
+    title: 'Permintaan Persetujuan Revisi: Kevin Hartanto',
     message:
-      'Kevin Hartanto (221116942) mengunggah Revisi v1.0 dengan token QR ISTTS-REV-221116942-V1. Klik untuk memindai dan menyetujui.',
+      'Kevin Hartanto (221116942) mengunggah Revisi v1.0. Pengesahan dapat dilakukan secara langsung (TTD dosen) atau melalui QR Code opsional (ISTTS-REV-221116942-V1) sebagai pengganti TTD.',
     createdAt: daysAgoIso(1),
     read: false,
     targetTab: 'tulis-review',
